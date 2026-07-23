@@ -8,6 +8,7 @@
   const BACKUP_VERSION = 2;
   const FIRST_SUPPORTED_BACKUP_VERSION = 1;
   const APP_NAME = 'TRPG Scenario Manager';
+  const BACKUP_DIRECTORY_NAME = 'TRPG Scenario Manager Backups';
 
   const MASTER = {
     systems: ['クトゥルフ神話TRPG（6版）', '新クトゥルフ神話TRPG（7版）', 'エモクロアTRPG', 'マーダーミステリー', 'インセイン', 'ダブルクロス The 3rd Edition', 'シノビガミ', 'ソード・ワールド2.5', '永い後日談のネクロニカ', 'フタリソウサ', 'ストリテラ', 'その他'],
@@ -273,9 +274,64 @@
   }
   async function saveDraft() { const data = readForm(); const existingId = document.querySelector('#draft-picker')?.value || state.activeDraftId; const existing = state.drafts.find(d => d.id === existingId); const draft = { id: existing?.id || uid('draft'), data, createdAt: existing?.createdAt || now(), updatedAt: now() }; await put('drafts', draft); state.activeDraftId = draft.id; await refreshData(); toast('下書きを保存しました'); renderEdit(state.route.id === 'new' ? 'new' : state.route.id); }
 
-  function renderBackup() { page(`<div class="page-title-row"><div><h1 class="page-title">バックアップ・復元</h1><p class="page-subtitle">登録データを安全に保存・復元できます。</p></div></div><section class="section-card backup-card"><div class="backup-icon">↥</div><div><h2>バックアップ</h2><p>現在登録されているすべてのシナリオデータをJSONファイルとして保存します。</p></div><button class="btn primary" data-action="backup">バックアップを作成</button></section><section class="section-card backup-card"><div class="backup-icon">↧</div><div><h2>復元</h2><p>バックアップファイルを読み込み、保存されている登録済みデータを復元します。</p></div><div><input id="restore-file" type="file" accept="application/json,.json" hidden><button class="btn" data-action="choose-file">ファイルを選択</button><span id="file-name" class="helper">選択されていません</span><button class="btn primary" data-action="restore" disabled>復元する</button></div></section><section class="section-card notice"><h2 class="section-heading">注意事項</h2><ul><li>バックアップには登録済みシナリオの全データが含まれます。下書きは含まれません。</li><li>対応範囲の旧形式バックアップは最新版のデータ形式へ自動移行して復元します。</li><li>復元を実行すると、現在保存されている登録済みデータは上書きされます。</li><li>JSON形式のバックアップファイルのみ読み込めます。</li><li>重要なデータは定期的にバックアップしてください。</li></ul></section><div class="center-actions"><button class="btn" data-action="back">一覧へ戻る</button></div>`, 'backup'); bindBackup(); }
-  function bindBackup() { document.querySelector('[data-action="backup"]').addEventListener('click', createBackup); const input = document.querySelector('#restore-file'); document.querySelector('[data-action="choose-file"]').addEventListener('click', () => input.click()); input.addEventListener('change', e => { document.querySelector('#file-name').textContent = e.target.files[0]?.name || '選択されていません'; document.querySelector('[data-action="restore"]').disabled = !e.target.files[0]; }); document.querySelector('[data-action="restore"]').addEventListener('click', () => restoreBackup(input.files[0])); document.querySelector('[data-action="back"]').addEventListener('click', () => go('list')); }
-  function createBackup() { const payload = { appName: APP_NAME, dataVersion: BACKUP_VERSION, createdAt: now(), scenarios: state.scenarios.map(normalizeScenario) }; const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `trpg-scenario-manager-backup-${new Date().toISOString().slice(0, 10)}.json`; a.click(); URL.revokeObjectURL(a.href); toast('バックアップを作成しました'); }
+  function renderBackup() { page(`<div class="page-title-row"><div><h1 class="page-title">バックアップ・復元</h1><p class="page-subtitle">登録データを安全に保存・復元できます。</p></div></div><section class="section-card backup-card"><div class="backup-icon">↥</div><div><h2>バックアップ</h2><p>現在登録されているすべてのシナリオデータをJSONファイルとして保存します。</p><div class="backup-location"><strong>保存先</strong><span id="backup-location-name">未選択</span><button type="button" class="btn small" data-action="choose-backup-directory">保存先を選択</button><small>選択した場所に「${BACKUP_DIRECTORY_NAME}」フォルダを作成して保存します。</small></div></div><button class="btn primary" data-action="backup">バックアップを作成</button></section><section class="section-card backup-card"><div class="backup-icon">↧</div><div><h2>復元</h2><p>バックアップファイルを読み込み、保存されている登録済みデータを復元します。</p></div><div><input id="restore-file" type="file" accept="application/json,.json" hidden><button class="btn" data-action="choose-file">ファイルを選択</button><span id="file-name" class="helper">選択されていません</span><button class="btn primary" data-action="restore" disabled>復元する</button></div></section><section class="section-card notice"><h2 class="section-heading">注意事項</h2><ul><li>バックアップには登録済みシナリオの全データが含まれます。下書きは含まれません。</li><li>対応範囲の旧形式バックアップは最新版のデータ形式へ自動移行して復元します。</li><li>復元を実行すると、現在保存されている登録済みデータは上書きされます。</li><li>JSON形式のバックアップファイルのみ読み込めます。</li><li>重要なデータは定期的にバックアップしてください。</li></ul></section><div class="center-actions"><button class="btn" data-action="back">一覧へ戻る</button></div>`, 'backup'); bindBackup(); }
+  function supportsDirectoryBackup() { return typeof window.showDirectoryPicker === 'function'; }
+  function backupFileName() { return `trpg-scenario-manager-backup-${new Date().toISOString().slice(0, 10)}.json`; }
+  async function chooseBackupDirectory() {
+    if (!supportsDirectoryBackup()) return toast('このブラウザでは保存先の指定に対応していません。通常のダウンロードを使用します。', true);
+    try {
+      const handle = await window.showDirectoryPicker({ mode: 'readwrite', startIn: 'downloads' });
+      state.settings.backupDirectoryHandle = handle;
+      await saveSettings();
+      renderBackup();
+      toast(`保存先を「${handle.name}」に設定しました`);
+    } catch (error) {
+      if (error?.name !== 'AbortError') toast('保存先の設定に失敗しました', true);
+    }
+  }
+  async function hasBackupDirectoryPermission(handle) {
+    if (!handle) return false;
+    let permission = await handle.queryPermission({ mode: 'readwrite' });
+    if (permission !== 'granted') permission = await handle.requestPermission({ mode: 'readwrite' });
+    return permission === 'granted';
+  }
+  function downloadBackup(blob, fileName) {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = fileName;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 0);
+  }
+  async function createBackup() {
+    const payload = { appName: APP_NAME, dataVersion: BACKUP_VERSION, createdAt: now(), scenarios: state.scenarios.map(normalizeScenario) };
+    const json = JSON.stringify(payload, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const fileName = backupFileName();
+    const handle = state.settings.backupDirectoryHandle;
+    if (supportsDirectoryBackup() && !handle) {
+      toast('先にバックアップの保存先を選択してください', true);
+      await chooseBackupDirectory();
+      return;
+    }
+    if (supportsDirectoryBackup() && handle) {
+      try {
+        if (!await hasBackupDirectoryPermission(handle)) throw new Error('permission-denied');
+        const backupDirectory = await handle.getDirectoryHandle(BACKUP_DIRECTORY_NAME, { create: true });
+        const fileHandle = await backupDirectory.getFileHandle(fileName, { create: true });
+        const writable = await fileHandle.createWritable();
+        await writable.write(json);
+        await writable.close();
+        toast(`バックアップを「${BACKUP_DIRECTORY_NAME}」に保存しました`);
+        return;
+      } catch (error) {
+        if (error?.name === 'NotAllowedError') toast('保存先へのアクセスが許可されませんでした', true);
+        else toast('指定した保存先に書き込めなかったため、ダウンロードに切り替えます', true);
+      }
+    }
+    downloadBackup(blob, fileName);
+    toast('バックアップをダウンロードしました');
+  }
+  function bindBackup() { const locationButton = document.querySelector('[data-action="choose-backup-directory"]'); const locationName = document.querySelector('#backup-location-name'); if (locationButton) locationButton.addEventListener('click', chooseBackupDirectory); if (locationName && state.settings.backupDirectoryHandle) locationName.textContent = state.settings.backupDirectoryHandle.name; if (!supportsDirectoryBackup()) { locationButton?.setAttribute('hidden', ''); if (locationName) locationName.textContent = 'このブラウザでは通常のダウンロードを使用します'; } document.querySelector('[data-action="backup"]').addEventListener('click', createBackup); const input = document.querySelector('#restore-file'); document.querySelector('[data-action="choose-file"]').addEventListener('click', () => input.click()); input.addEventListener('change', e => { document.querySelector('#file-name').textContent = e.target.files[0]?.name || '選択されていません'; document.querySelector('[data-action="restore"]').disabled = !e.target.files[0]; }); document.querySelector('[data-action="restore"]').addEventListener('click', () => restoreBackup(input.files[0])); document.querySelector('[data-action="back"]').addEventListener('click', () => go('list')); }
   async function restoreBackup(file) {
     if (!file) return;
     try {
