@@ -11,6 +11,8 @@
   --danger: #c53f4b;
   --danger-soft: #fff0f1;
   --success: #197b62;
+  --image-bg-start: #edf3fc;
+  --image-bg-end: #dce6f5;
   --shadow: 0 14px 35px rgba(31, 45, 82, .08);
   --radius: 16px;
   font-family: Inter, "Noto Sans JP", "Yu Gothic UI", Meiryo, sans-serif;
@@ -31,6 +33,8 @@ body[data-theme="dark"] {
   --danger: #ff929a;
   --danger-soft: #45242c;
   --success: #65d5b0;
+  --image-bg-start: #101a33;
+  --image-bg-end: #243760;
   --shadow: 0 14px 35px rgba(0, 0, 0, .2);
 }
 
@@ -102,7 +106,7 @@ a { color: inherit; text-decoration: none; }
 .scenario-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px; }
 .scenario-card { min-width: 0; overflow: hidden; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); cursor: pointer; transition: .18s ease; }
 .scenario-card:hover { transform: translateY(-3px); box-shadow: 0 18px 38px rgba(31, 45, 82, .15); }
-.card-image { width: 100%; height: 168px; object-fit: cover; object-position: center; display: block; background: linear-gradient(135deg, #172852, #7184b8); }
+.card-image { width: 100%; height: 168px; object-fit: contain; object-position: center; display: block; background: linear-gradient(135deg, var(--image-bg-start), var(--image-bg-end)); }
 .placeholder { display: grid; place-items: center; color: #fff; font-size: 38px; background: linear-gradient(135deg, #1d326c, #93a2c8); }
 .card-body { padding: 14px 16px 16px; }
 .card-title-row { display: flex; gap: 10px; align-items: start; justify-content: space-between; }
@@ -116,6 +120,7 @@ a { color: inherit; text-decoration: none; }
 .card-system { margin-top: 7px; font-size: 13px; color: var(--muted); }
 .card-author { margin-top: 5px; font-size: 13px; color: var(--muted); }
 .card-facts { display: flex; gap: 9px; margin: 10px 0; font-size: 13px; color: var(--muted); }
+.card-recommended { margin: 8px 0; font-size: 13px; color: var(--muted); line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
 .tags { display: flex; flex-wrap: wrap; gap: 6px; }
 .tag { display: inline-flex; align-items: center; padding: 5px 9px; border-radius: 999px; background: var(--primary-soft); color: var(--primary-strong); font-size: 12px; font-weight: 800; }
 .tag-color-0 { background: #e5efff; color: #2458a6; }
@@ -169,9 +174,9 @@ body[data-theme="dark"] .hero-status .tag:nth-child(6) { background: #542b38; co
 .data-value { line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; }
 .data-value.muted { color: var(--muted); }
 .detail-hero { display: grid; grid-template-columns: minmax(380px, .88fr) 1.12fr; gap: 0; overflow: hidden; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
-.hero-images { height: 420px; min-height: 0; background: #15234a; }
+.hero-images { height: 420px; min-height: 0; background: linear-gradient(135deg, var(--image-bg-start), var(--image-bg-end)); }
 .hero-images.single { grid-template-columns: 1fr; }
-.hero-images img { width: 100%; height: 100%; min-height: 64px; object-fit: cover; object-position: center; }
+.hero-images img { width: 100%; height: 100%; min-height: 64px; object-fit: contain; object-position: center; }
 .hero-images .card-image { height: 420px; }
 .detail-carousel { position: relative; width: 100%; height: 100%; overflow: hidden; outline: none; touch-action: pan-x; overscroll-behavior: contain; }
 .carousel-track { display: flex; width: 100%; height: 100%; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; touch-action: pan-x; }
@@ -197,8 +202,8 @@ body[data-theme="dark"] .hero-status .tag:nth-child(6) { background: #542b38; co
 .trailer-layout { display: grid; grid-template-columns: .8fr 1.2fr; gap: 20px; }
 .trailer-copy { padding: 17px; min-height: 130px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-soft); white-space: pre-wrap; line-height: 1.8; }
 .trailer-images { min-height: 128px; }
-.trailer-images .detail-carousel { height: 260px; border-radius: 10px; background: #15234a; }
-.trailer-images img { width: 100%; height: 100%; object-fit: cover; object-position: center; border-radius: 10px; border: 1px solid var(--line); }
+.trailer-images .detail-carousel { height: 260px; border-radius: 10px; background: linear-gradient(135deg, var(--image-bg-start), var(--image-bg-end)); }
+.trailer-images img { width: 100%; height: 100%; object-fit: contain; object-position: center; border-radius: 10px; border: 1px solid var(--line); }
 .url { color: #2b6bc2; text-decoration: underline; overflow-wrap: anywhere; }
 
 .edit-header { margin-bottom: 22px; }
