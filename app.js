@@ -20,7 +20,7 @@
     trends: ['ホラー', '推理', '謎解き', '戦闘', 'RP重視', 'エモーショナル', 'シリアス', '愉快', 'ギャグ', 'コメディ', '茶番', '青春', '恋愛', 'うちよそ', '探索重視', '高難易度', '初心者向け', '秘匿HO', 'クローズド', 'シティ']
   };
 
-  const state = { route: {}, scenarios: [], drafts: [], settings: { theme: 'light', confirmDelete: true, promptBackup: false }, filters: { keyword: '', system: '', count: '', time: '', lost: '', trend: '', play: '', kp: '', combat: '', sort: 'updatedAt-desc' }, editImages: [], editHoItems: [{ type: '', content: '' }], editHoType: '', activeDraftId: null };
+  const state = { route: {}, scenarios: [], drafts: [], settings: { theme: 'light', confirmDelete: true, promptBackup: false, discordFormat: defaultDiscordFormat() }, filters: { keyword: '', system: '', count: '', time: '', lost: '', trend: '', play: '', kp: '', combat: '', sort: 'updatedAt-desc' }, editImages: [], editHoItems: [{ type: '', content: '' }], editHoType: '', activeDraftId: null, pendingScenarioTransition: null };
   let db;
 
   function uid(prefix) { return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`; }
@@ -31,6 +31,15 @@
   function formatDateTime(value) { if (!value) return '未設定'; return new Intl.DateTimeFormat('ja-JP', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value)); }
   function display(value) { return value ? escapeHtml(value) : '<span class="muted">未設定</span>'; }
   function array(value) { return Array.isArray(value) ? value : []; }
+  function tagColor(value) {
+    const text = String(value || '');
+    let hash = 0;
+    for (let index = 0; index < text.length; index += 1) hash = ((hash << 5) - hash + text.charCodeAt(index)) | 0;
+    return `tag-color-${Math.abs(hash) % 8}`;
+  }
+  function tagMarkup(value, index = 0) {
+    return `<span class="tag ${tagColor(value)}" data-tag-index="${index}">${escapeHtml(value)}</span>`;
+  }
   function toast(message, error = false) { const el = document.createElement('div'); el.className = `toast${error ? ' error' : ''}`; el.textContent = message; document.querySelector('#toast-region').appendChild(el); setTimeout(() => el.remove(), 3500); }
 
   function openDb() {
@@ -44,7 +53,7 @@
   function readAll(store) { return new Promise((resolve, reject) => { const r = db.transaction(store, 'readonly').objectStore(store).getAll(); r.onsuccess = () => resolve(r.result || []); r.onerror = () => reject(r.error); }); }
   function put(store, value) { return new Promise((resolve, reject) => { const r = db.transaction(store, 'readwrite').objectStore(store).put(value); r.onsuccess = () => resolve(value); r.onerror = () => reject(r.error); }); }
   function remove(store, id) { return new Promise((resolve, reject) => { const r = db.transaction(store, 'readwrite').objectStore(store).delete(id); r.onsuccess = () => resolve(); r.onerror = () => reject(r.error); }); }
-  async function refreshData() { [state.scenarios, state.drafts] = await Promise.all([readAll('scenarios'), readAll('drafts')]); state.scenarios = state.scenarios.filter(isObject).map(normalizeScenario); state.drafts = state.drafts.map(draft => ({ ...draft, data: isObject(draft.data) ? normalizeScenario(draft.data) : blankData() })); const saved = await readAll('settings'); if (saved[0]?.value) state.settings = { ...state.settings, ...saved[0].value }; applyTheme(); }
+  async function refreshData() { [state.scenarios, state.drafts] = await Promise.all([readAll('scenarios'), readAll('drafts')]); state.scenarios = state.scenarios.filter(isObject).map(normalizeScenario); state.drafts = state.drafts.map(draft => ({ ...draft, data: isObject(draft.data) ? normalizeScenario(draft.data) : blankData() })); const saved = await readAll('settings'); if (saved[0]?.value) state.settings = { ...state.settings, ...saved[0].value, discordFormat: normalizeDiscordFormat(saved[0].value.discordFormat) }; applyTheme(); }
   async function saveSettings() { await put('settings', { id: 'app-settings', value: state.settings }); applyTheme(); }
   function applyTheme() { const theme = state.settings.theme === 'system' ? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : state.settings.theme; document.body.dataset.theme = theme; document.documentElement.dataset.theme = theme; }
 
@@ -53,9 +62,9 @@
   }
   function go(page, id = '') { location.hash = id ? `#${page}/${id}` : `#${page}`; }
   function header(active) {
-    return `<header class="app-header"><a class="brand" href="#list">${APP_NAME}</a><nav class="main-nav" aria-label="メインナビゲーション"><a class="nav-link ${active === 'list' ? 'active' : ''}" href="#list">一覧</a><a class="nav-link ${active === 'backup' ? 'active' : ''}" href="#backup">バックアップ</a><a class="nav-link ${active === 'settings' ? 'active' : ''}" href="#settings">設定</a></nav><div class="header-actions"><div class="search-box"><span>⌕</span><input id="global-search" type="search" placeholder="検索（タイトル・作者・舞台など）" value="${escAttr(state.filters.keyword)}" aria-label="キーワード検索"></div><button class="btn primary" data-action="new">＋ 新規登録</button></div></header>`;
+    return `<header class="app-header"><a class="brand" href="#list">${APP_NAME}</a><nav class="main-nav" aria-label="メインナビゲーション"><a class="nav-link ${active === 'list' ? 'active' : ''}" href="#list">一覧</a><a class="nav-link ${active === 'backup' ? 'active' : ''}" href="#backup">バックアップ</a><a class="nav-link ${active === 'discord-format' ? 'active' : ''}" href="#discord-format">Discord形式</a><a class="nav-link ${active === 'settings' ? 'active' : ''}" href="#settings">設定</a></nav><div class="header-actions"><div class="search-box"><span>⌕</span><input id="global-search" type="search" placeholder="検索（タイトル・作者・舞台など）" value="${escAttr(state.filters.keyword)}" aria-label="キーワード検索"></div><button class="btn primary" data-action="new">＋ 新規登録</button></div></header>`;
   }
-  function page(content, active) { document.querySelector('#app').innerHTML = `${header(active)}<main class="page">${content}</main>`; removeVersionField(); bindGlobal(); if (content.includes('id="scenario-form"')) { setupHoFields(); repairHoTypeField(); syncHoFields(); setupCampaignFields(); addKpLessOption(); adjustCampaignLayout(); } }
+  function page(content, active) { const pageContent = content.includes('detail-hero') ? content.replace(/<section class="section-card"><h2 class="section-heading">トレーラー<\/h2>.*?<\/section>(?=<section class="section-card"><h2 class="section-heading">個人管理<\/h2>)/, '') : content; document.querySelector('#app').innerHTML = `${header(active)}<main class="page">${pageContent}</main>`; removeVersionField(); bindGlobal(); if (content.includes('id="scenario-form"')) { setupHoFields(); repairHoTypeField(); syncHoFields(); setupCampaignFields(); addKpLessOption(); adjustCampaignLayout(); } }
   function removeVersionField() {
     document.querySelectorAll('#version').forEach(element => { const field = element.closest('.field'); if (field) field.hidden = true; });
     document.querySelectorAll('.data-item').forEach(item => { if (item.querySelector('.data-label')?.textContent.trim() === '\u5bfe\u5fdc\u7248') item.remove(); });
@@ -142,6 +151,18 @@
 
   function optionList(items, selected = '', includeAll = false) { return `${includeAll ? '<option value="">すべて</option>' : '<option value="">選択してください</option>'}${items.map(item => { const x = typeof item === 'string' ? item : item.value; const label = typeof item === 'string' ? item : item.label; return `<option value="${escAttr(x)}" ${x === selected ? 'selected' : ''}>${escapeHtml(label)}</option>`; }).join('')}`; }
   function scenarioText(s) { const b = s.basic || {}, sc = s.scenario || {}, p = s.personal || ''; return [b.title, b.author, b.system, b.stage, ...array(sc.recommendedSkills), ...array(sc.secondarySkills), sc.hoContent, p.memo].join(' ').toLowerCase(); }
+  function isEnglishTitle(value) { return /^[A-Za-z]/.test(String(value || '').trim()); }
+  function compareTitles(a, b, aReading = '', bReading = '') {
+    const aEnglish = isEnglishTitle(a);
+    const bEnglish = isEnglishTitle(b);
+    if (aEnglish !== bEnglish) return aEnglish ? 1 : -1;
+    const aSortValue = aReading || a;
+    const bSortValue = bReading || b;
+    return String(aSortValue || '').localeCompare(String(bSortValue || ''), 'ja');
+  }
+  function compareReading(a, b, aReading = '', bReading = '') {
+    return String(aReading || a || '').localeCompare(String(bReading || b || ''), 'ja');
+  }
   function personLabel(b) { if (b.countType === 'fixed') return `${b.fixedCount || '-'}人固定`; if (b.countType === 'range') return `${b.minCount || '-'}〜${b.maxCount || '-'}${b.maxCount === 'KP管理できる人数' ? '' : '人'}`; return b.freeCount || '自由入力'; }
   function timeText(value, unit) { return value ? `${value}${unit || '時間'}` : ''; }
   function timeLabel(b) { if (b.timeType === 'fixed') return b.fixedTimeValue ? timeText(b.fixedTimeValue, b.fixedTimeUnit) : (b.fixedTime || '未設定'); if (b.timeType === 'range') return b.minTimeValue || b.maxTimeValue ? `${timeText(b.minTimeValue, b.minTimeUnit) || '-'}〜${timeText(b.maxTimeValue, b.maxTimeUnit) || '-'}` : `${b.minTime || '-'}〜${b.maxTime || '-'}時間`; return b.freeTime || '自由入力'; }
@@ -151,7 +172,7 @@
   const timeFilters = [{ value: 'within-1', label: '1時間以内（0〜1時間）', min: 0, max: 60 }, { value: 'around-1', label: '1時間前後（1〜2時間）', min: 60, max: 120 }, { value: 'around-3', label: '3時間前後（2〜4時間）', min: 120, max: 240 }, { value: 'around-5', label: '5時間前後（4〜7時間）', min: 240, max: 420 }, { value: 'around-9', label: '9時間前後（7〜11時間）', min: 420, max: 660 }, { value: 'around-12', label: '12時間前後（11〜15時間）', min: 660, max: 900 }, { value: 'over-15', label: '15時間以上', min: 900, max: Infinity }];
   function matchesTimeFilter(b, value) { const filter = timeFilters.find(item => item.value === value); const range = scenarioTimeRange(b); if (!filter || !range) return false; const [min, max] = range; return filter.max === Infinity ? max >= filter.min : filter.value === 'within-1' ? min <= filter.max && max >= filter.min : max > filter.min && min <= filter.max; }
   function filteredScenarios() {
-    const f = state.filters; let result = state.scenarios.filter(s => { const b = s.basic || {}, sc = s.scenario || {}, p = s.personal || ''; const keyword = f.keyword.trim().toLowerCase(); if (keyword && !scenarioText(s).includes(keyword)) return false; if (f.system && b.system !== f.system) return false; if (f.version && b.version !== f.version) return false; if (f.lost && sc.lostRate !== f.lost) return false; if (f.trend && !array(sc.trends).includes(f.trend)) return false; if (f.play && p.playStatus !== f.play) return false; if (f.kp && p.kpStatus !== f.kp) return false; if (f.combat && sc.combat !== f.combat) return false; if (f.count && !personLabel(b).includes(f.count)) return false; if (f.time && !matchesTimeFilter(b, f.time)) return false; return true; }); const [key, dir] = f.sort.split('-'); result.sort((a, b) => { let av = key === 'title' ? a.basic.title : key === 'author' ? a.basic.author : a[key]; let bv = key === 'title' ? b.basic.title : key === 'author' ? b.basic.author : b[key]; av = av || ''; bv = bv || ''; const cmp = typeof av === 'string' ? av.localeCompare(bv, 'ja') : av - bv; return dir === 'asc' ? cmp : -cmp; }); return result; }
+    const f = state.filters; let result = state.scenarios.filter(s => { const b = s.basic || {}, sc = s.scenario || {}, p = s.personal || ''; const keyword = f.keyword.trim().toLowerCase(); if (keyword && !scenarioText(s).includes(keyword)) return false; if (f.system && b.system !== f.system) return false; if (f.version && b.version !== f.version) return false; if (f.lost && sc.lostRate !== f.lost) return false; if (f.trend && !array(sc.trends).includes(f.trend)) return false; if (f.play && p.playStatus !== f.play) return false; if (f.kp && p.kpStatus !== f.kp) return false; if (f.combat && sc.combat !== f.combat) return false; if (f.count && !personLabel(b).includes(f.count)) return false; if (f.time && !matchesTimeFilter(b, f.time)) return false; return true; }); const [key, dir] = f.sort.split('-'); result.sort((a, b) => { let av = key === 'title' ? a.basic.title : key === 'author' ? a.basic.author : a[key]; let bv = key === 'title' ? b.basic.title : key === 'author' ? b.basic.author : b[key]; av = av || ''; bv = bv || ''; const cmp = key === 'title' ? compareTitles(a.basic.title, b.basic.title, a.basic.titleReading, b.basic.titleReading) : key === 'author' ? compareReading(a.basic.author, b.basic.author, a.basic.authorReading, b.basic.authorReading) : typeof av === 'string' ? av.localeCompare(bv, 'ja') : av - bv; return dir === 'asc' ? cmp : -cmp; }); return result; }
   function selectFilter(id, label, items, value, includeAll = true) { return `<div class="field"><label for="${id}">${label}</label><select id="${id}">${optionList(items, value, includeAll)}</select></div>`; }
 
   function renderList() {
@@ -162,14 +183,15 @@
   }
   function currentVersions() { return []; }
   async function toggleFavorite(id) { const scenario = detail(id); if (!scenario) return; scenario.favorite = !scenario.favorite; await put('scenarios', scenario); await refreshData(); toast(scenario.favorite ? 'お気に入りに追加しました' : 'お気に入りから外しました'); if (state.route.page === 'list') renderList(); else if (state.route.page === 'detail') renderDetail(id); }
-  function bindList() { document.querySelectorAll('.scenario-card').forEach(el => { el.addEventListener('click', () => go('detail', el.dataset.id)); el.querySelector('[data-action="favorite"]')?.addEventListener('click', e => { e.stopPropagation(); toggleFavorite(el.dataset.id); }); }); const ids = ['filter-system', 'filter-version', 'filter-count', 'filter-time', 'filter-lost', 'filter-trend', 'filter-play', 'filter-kp', 'filter-combat', 'filter-sort']; ids.forEach(id => document.querySelector(`#${id}`)?.addEventListener('change', e => { const map = { 'filter-system': 'system', 'filter-version': 'version', 'filter-count': 'count', 'filter-time': 'time', 'filter-lost': 'lost', 'filter-trend': 'trend', 'filter-play': 'play', 'filter-kp': 'kp', 'filter-combat': 'combat', 'filter-sort': 'sort' }; state.filters[map[id]] = e.target.value; if (id === 'filter-system') { state.filters.version = ''; renderList(); } else renderList(); })); document.querySelector('[data-action="advanced"]')?.addEventListener('click', () => document.querySelector('#advanced-filters')?.classList.toggle('open')); document.querySelectorAll('[data-action="reset"]').forEach(el => el.addEventListener('click', () => { Object.assign(state.filters, { keyword: '', system: '', version: '', count: '', time: '', lost: '', trend: '', play: '', kp: '', combat: '', sort: 'updatedAt-desc' }); renderList(); })); }
+  function bindList() { document.querySelectorAll('.scenario-card').forEach(el => { el.addEventListener('click', () => { const image = el.querySelector('img.card-image') || el.querySelector('.card-image'); const rect = image?.getBoundingClientRect(); state.pendingScenarioTransition = rect ? { id: el.dataset.id, rect: { left: rect.left, top: rect.top, width: rect.width, height: rect.height } } : null; go('detail', el.dataset.id); }); el.querySelector('[data-action="favorite"]')?.addEventListener('click', e => { e.stopPropagation(); toggleFavorite(el.dataset.id); }); }); const ids = ['filter-system', 'filter-version', 'filter-count', 'filter-time', 'filter-lost', 'filter-trend', 'filter-play', 'filter-kp', 'filter-combat', 'filter-sort']; ids.forEach(id => document.querySelector(`#${id}`)?.addEventListener('change', e => { const map = { 'filter-system': 'system', 'filter-version': 'version', 'filter-count': 'count', 'filter-time': 'time', 'filter-lost': 'lost', 'filter-trend': 'trend', 'filter-play': 'play', 'filter-kp': 'kp', 'filter-combat': 'combat', 'filter-sort': 'sort' }; state.filters[map[id]] = e.target.value; if (id === 'filter-system') { state.filters.version = ''; renderList(); } else renderList(); })); document.querySelector('[data-action="advanced"]')?.addEventListener('click', () => document.querySelector('#advanced-filters')?.classList.toggle('open')); document.querySelectorAll('[data-action="reset"]').forEach(el => el.addEventListener('click', () => { Object.assign(state.filters, { keyword: '', system: '', version: '', count: '', time: '', lost: '', trend: '', play: '', kp: '', combat: '', sort: 'updatedAt-desc' }); renderList(); })); }
 
   function detail(id) { const found = state.scenarios.find(s => s.id === id); if (found) { state.editHoItems = normalizeHoItems(found.scenario || {}); state.editHoType = String(found.scenario?.hoType || '').split('\u001f')[0] || state.editHoItems[0]?.type || ''; } return found; }
-  function renderDetail(id) { const s = detail(id); if (!s) return go('list'); const b = s.basic || {}, sc = s.scenario || {}, p = s.personal || {}, imgs = array(s.trailer?.images); page(`<a href="#list" class="back-link">← 一覧に戻る</a><div class="detail-hero"><div class="hero-images ${imgs.length < 2 ? 'single' : ''}">${imgs.length ? imgs.map(src => `<img src="${src}" alt="${escAttr(b.title)}のトレーラー画像">`).join('') : '<div class="card-image placeholder">✦</div>'}</div><div class="hero-copy"><h1>${display(b.title)}</h1><div class="hero-status"><span class="tag">${display(b.system)}</span><span class="tag">${display(b.version)}</span><span class="tag warn">${escapeHtml(personLabel(b))}</span><span class="tag warn">${escapeHtml(timeLabel(b))}</span>${array(sc.trends).slice(0, 3).map(x => `<span class="tag">${escapeHtml(x)}</span>`).join('')}</div><p class="author">作者名：${display(b.author)}</p><p class="summary">${display(sc.trailerSummary || s.trailer?.text)}</p></div></div><section class="section-card"><h2 class="section-heading">基本情報</h2><div class="data-grid"><div class="data-column">${dataItem('TRPGシステム', b.system)}${dataItem('対応版', b.version)}${dataItem('作者名', b.author)}${dataItem('舞台', b.stage)}</div><div class="data-column">${dataItem('人数', personLabel(b))}${dataItem('人数形式', countTypeLabel(b.countType))}${dataItem('固定人数', b.fixedCount ? `${b.fixedCount}人` : '')}${dataItem('最小人数', b.minCount ? `${b.minCount}人` : '')}${dataItem('最大人数', b.maxCount ? `${b.maxCount}人` : '')}</div><div class="data-column">${dataItem('時間', timeLabel(b))}${dataItem('時間形式', timeTypeLabel(b.timeType))}${dataItem('固定時間', b.fixedTime)}${dataItem('最短時間', b.minTime)}${dataItem('最長時間', b.maxTime)}</div></div></section><section class="section-card"><h2 class="section-heading">シナリオ情報</h2><div class="data-grid"><div class="data-column">${tagItem('推奨技能', sc.recommendedSkills)}${tagItem('準推奨技能', sc.secondarySkills)}${dataItem('非推奨', sc.notRecommended)}</div><div class="data-column">${dataItem('ロスト率', sc.lostRate)}${dataItem('ロスト率補足', sc.lostRateNote)}${dataItem('HO形式', sc.hoType)}${dataItem('HO内容', sc.hoContent)}</div><div class="data-column">${tagItem('シナリオ傾向', sc.trends)}${dataItem('戦闘の有無', sc.combat)}${dataItem('注意事項', sc.notes)}</div></div></section><section class="section-card"><h2 class="section-heading">トレーラー</h2><div class="trailer-layout"><div><div class="data-label">トレーラー文章</div><div class="trailer-copy">${display(s.trailer?.text)}</div></div><div><div class="data-label">トレーラー画像</div><div class="trailer-images">${imgs.length ? imgs.map(src => `<img src="${src}" alt="トレーラー画像">`).join('') : '<span class="muted">未設定</span>'}</div></div></div></section><section class="section-card"><h2 class="section-heading">個人管理</h2><div class="data-grid"><div class="data-column">${urlItem('購入・配布URL', p.url)}${dataItem('KP状態', p.kpStatus)}${dataItem('プレイ状態', p.playStatus)}</div><div class="data-column">${dataItem('自由メモ', p.memo)}</div><div class="data-column">${dataItem('登録日', formatDateTime(s.createdAt))}${dataItem('更新日', formatDateTime(s.updatedAt))}</div></div></section><div class="detail-actions"><button class="btn" data-action="back">← 一覧へ戻る</button><button class="btn" data-action="discord-copy">Discord用にコピー</button><button class="btn primary" data-action="edit">✎ 編集する</button><button class="btn danger" data-action="delete">♜ 削除する</button></div>`, 'list'); document.querySelector('[data-action="back"]').addEventListener('click', () => go('list')); document.querySelector('[data-action="edit"]').addEventListener('click', () => go('edit', id)); document.querySelector('[data-action="delete"]').addEventListener('click', () => confirmDelete(s)); document.querySelector('[data-action="discord-copy"]').addEventListener('click', () => copyDiscordScenario(s)); }
+  function carouselMarkup(images, id, alt) { if (!images.length) return '<div class="card-image placeholder">✦</div>'; const controls = images.length > 1 ? `<button type="button" class="carousel-button prev" data-carousel-prev aria-label="前の画像"></button><button type="button" class="carousel-button next" data-carousel-next aria-label="次の画像"></button><div class="carousel-counter" aria-live="polite">1 / ${images.length}</div>` : ''; return `<div class="detail-carousel" data-carousel="${id}" tabindex="0"><div class="carousel-track">${images.map((image, index) => `<img class="carousel-slide${index === 0 ? ' active' : ''}" draggable="false" src="${escAttr(image.src)}" alt="${escAttr(alt)}" aria-hidden="${index === 0 ? 'false' : 'true'}">`).join('')}</div>${controls}</div>`; }
+  function renderDetail(id) { const s = detail(id); if (!s) return go('list'); const b = s.basic || {}, sc = s.scenario || {}, p = s.personal || {}, imgs = array(s.trailer?.images); page(`<a href="#list" class="back-link">← 一覧に戻る</a><div class="detail-hero"><div class="hero-images ${imgs.length < 2 ? 'single' : ''}">${carouselMarkup(imgs, 'hero', `${b.title}のトレーラー画像`)}</div><div class="hero-copy"><h1>${display(b.title)}</h1><div class="hero-status"><span class="tag">${display(b.system)}</span><span class="tag">${display(b.version)}</span><span class="tag warn">${escapeHtml(personLabel(b))}</span><span class="tag warn">${escapeHtml(timeLabel(b))}</span>${array(sc.trends).slice(0, 3).map(x => `<span class="tag">${escapeHtml(x)}</span>`).join('')}</div><p class="author">作者名：${display(b.author)}</p><p class="summary">${display(sc.trailerSummary || s.trailer?.text)}</p></div></div><section class="section-card"><h2 class="section-heading">基本情報</h2><div class="data-grid"><div class="data-column">${dataItem('TRPGシステム', b.system)}${dataItem('対応版', b.version)}${dataItem('作者名', b.author)}${dataItem('舞台', b.stage)}</div><div class="data-column">${dataItem('人数', personLabel(b))}${dataItem('人数形式', countTypeLabel(b.countType))}${dataItem('固定人数', b.fixedCount ? `${b.fixedCount}人` : '')}${dataItem('最小人数', b.minCount ? `${b.minCount}人` : '')}${dataItem('最大人数', b.maxCount ? `${b.maxCount}人` : '')}</div><div class="data-column">${dataItem('時間', timeLabel(b))}${dataItem('時間形式', timeTypeLabel(b.timeType))}${dataItem('固定時間', b.fixedTime)}${dataItem('最短時間', b.minTime)}${dataItem('最長時間', b.maxTime)}</div></div></section><section class="section-card"><h2 class="section-heading">シナリオ情報</h2><div class="data-grid"><div class="data-column">${tagItem('推奨技能', sc.recommendedSkills)}${tagItem('準推奨技能', sc.secondarySkills)}${dataItem('非推奨', sc.notRecommended)}</div><div class="data-column">${dataItem('ロスト率', sc.lostRate)}${dataItem('ロスト率補足', sc.lostRateNote)}${dataItem('HO形式', sc.hoType)}${dataItem('HO内容', sc.hoContent)}</div><div class="data-column">${tagItem('シナリオ傾向', sc.trends)}${dataItem('戦闘の有無', sc.combat)}${dataItem('注意事項', sc.notes)}</div></div></section><section class="section-card"><h2 class="section-heading">トレーラー</h2><div class="trailer-layout"><div><div class="data-label">トレーラー文章</div><div class="trailer-copy">${display(s.trailer?.text)}</div></div><div><div class="data-label">トレーラー画像</div><div class="trailer-images">${carouselMarkup(imgs, 'trailer', 'トレーラー画像')}</div></div></div></section><section class="section-card"><h2 class="section-heading">個人管理</h2><div class="data-grid"><div class="data-column">${urlItem('購入・配布URL', p.url)}${dataItem('KP状態', p.kpStatus)}${dataItem('プレイ状態', p.playStatus)}</div><div class="data-column">${dataItem('自由メモ', p.memo)}</div><div class="data-column">${dataItem('登録日', formatDateTime(s.createdAt))}${dataItem('更新日', formatDateTime(s.updatedAt))}</div></div></section><div class="detail-actions"><button class="btn" data-action="back">← 一覧へ戻る</button><button class="btn" data-action="discord-copy">Discord用にコピー</button><button class="btn primary" data-action="edit">✎ 編集する</button><button class="btn danger" data-action="delete">♜ 削除する</button></div>`, 'list'); document.querySelector('[data-action="back"]').addEventListener('click', () => go('list')); document.querySelector('[data-action="edit"]').addEventListener('click', () => go('edit', id)); document.querySelector('[data-action="delete"]').addEventListener('click', () => confirmDelete(s)); document.querySelector('[data-action="discord-copy"]').addEventListener('click', () => copyDiscordScenario(s)); }
   function dataItem(label, value) { const shown = label === 'HO形式' ? String(value || '').replace(/\u001f/g, ' / ') : label === 'HO内容' ? String(value || '').replace(/\u001e/g, '\n\n') : value; return `<div class="data-item"><div class="data-label">${escapeHtml(label)}</div><div class="data-value">${typeof shown === 'string' && shown.includes('<span') ? shown : display(shown)}</div></div>`; }
   function discordValue(value, fallback = '未設定') { const text = Array.isArray(value) ? value.filter(Boolean).join('、') : String(value || '').trim(); return text || fallback; }
   function discordLine(label, value) { return `${label}：${discordValue(value)}`; }
-  function discordHoBlocks(sc) {
+  function discordHoBlocks(sc, format = { showLabels: true }) {
     const globalType = discordValue(sc.hoType, 'なし');
     const isSecret = globalType === '秘匿HOあり';
     const items = normalizeHoItems(sc).filter(item => item.content.trim());
@@ -180,42 +202,57 @@
     const isIndividual = (globalType.includes('個別') || isSecret) && !globalType.includes('共通');
     const publicItems = isIndividual ? [] : (isMixed ? contents.slice(0, 1) : contents);
     const individualItems = isIndividual ? contents : (isMixed ? contents.slice(1) : []);
-    const formatItems = selected => selected.map(item => `HO：${item.content.trim()}`).join('\n\n');
+    const formatItems = selected => selected.map(item => format.showLabels === false ? item.content.trim() : `HO：${item.content.trim()}`).join('\n\n');
     return [isSecret ? '秘匿HOあり' : '', formatItems(publicItems), formatItems(individualItems)].filter(Boolean);
   }
+  function defaultDiscordFormat() {
+    return { titleTemplate: '**{system}　{title}**', codeBlock: true, showLabels: true, sections: [
+      { key: 'overview', title: '概要', enabled: true },
+      { key: 'basic', title: '基本情報', enabled: true },
+      { key: 'ho', title: 'HO', enabled: true },
+      { key: 'notes', title: '注意点・補足事項', enabled: true }
+    ], fields: {
+      system: { enabled: true, label: 'システム' }, count: { enabled: true, label: '人数' }, stage: { enabled: true, label: '舞台' },
+      recommendedSkills: { enabled: true, label: '推奨技能' }, secondarySkills: { enabled: true, label: '準推奨技能' }, combat: { enabled: true, label: '戦闘' },
+      lostRate: { enabled: true, label: 'ロスト率' }, lostRateNote: { enabled: true, label: 'ロスト率補足' }, time: { enabled: true, label: 'プレイ時間' }, trends: { enabled: true, label: '傾向' },
+      notRecommended: { enabled: true, label: '非推奨技能' }, notes: { enabled: true, label: '注意事項' },
+      author: { enabled: false, label: '作者名' }, url: { enabled: false, label: '購入・配布URL' }, kpStatus: { enabled: false, label: 'KP状態' },
+      playStatus: { enabled: false, label: 'プレイ状態' }, memo: { enabled: false, label: '自由メモ' }
+    } };
+  }
+  function normalizeDiscordFormat(value) {
+    const fallback = defaultDiscordFormat();
+    if (!isObject(value)) return fallback;
+    const savedSections = Array.isArray(value.sections) ? value.sections : [];
+    const sections = [...savedSections.filter(item => fallback.sections.some(section => section.key === item.key)), ...fallback.sections.filter(section => !savedSections.some(item => item.key === section.key))].map(section => ({ ...fallback.sections.find(item => item.key === section.key), ...section }));
+    const fields = Object.fromEntries(Object.entries(fallback.fields).map(([key, field]) => [key, { ...field, ...(value.fields?.[key] || {}) }]));
+    return { ...fallback, ...value, sections, fields, titleTemplate: value.titleTemplate || fallback.titleTemplate };
+  }
+  function discordFormatField(format, key, label, value) { const field = format.fields[key]; if (field?.enabled === false) return ''; return format.showLabels === false ? discordValue(value) : discordLine(field?.label || label, value); }
   function discordScenarioText(s) {
     const b = s.basic || {}, sc = s.scenario || {}, c = s.campaign || {};
+    const format = normalizeDiscordFormat(state.settings.discordFormat);
     const title = discordValue(b.title, 'シナリオ');
     const system = discordValue(b.system).replace(/（[^）]*）/g, '').trim();
-    const overview = ['【概要】', discordValue(s.trailer?.text)].join('\n');
-    const basic = [
-      '【基本情報】',
-      discordLine('システム', b.system),
-      discordLine('人数', personLabel(b)),
-      discordLine('舞台', b.stage),
-      discordLine('推奨技能', array(sc.recommendedSkills)),
-      discordLine('準推奨技能', array(sc.secondarySkills)),
-      discordLine('戦闘', sc.combat),
-      discordLine('ロスト率', sc.lostRate),
-      sc.lostRateNote ? discordLine('ロスト率補足', sc.lostRateNote) : '',
-      discordLine('プレイ時間', timeLabel(b)),
-      b.scenarioType === 'campaign' && array(c.episodes).length ? `話数：${c.episodes.length}` : '',
-      sc.trends?.length ? discordLine('傾向', array(sc.trends)) : ''
-    ].filter(Boolean).join('\n');
-    const ho = ['【HO】', discordHoBlocks(sc).join('\n\n')].join('\n');
-    const notes = ['【注意点・補足事項】', discordLine('非推奨技能', sc.notRecommended), discordLine('注意事項', sc.notes)].join('\n');
+    const contents = {
+      overview: discordValue(s.trailer?.text),
+      basic: [discordFormatField(format, 'system', 'システム', b.system), discordFormatField(format, 'count', '人数', personLabel(b)), discordFormatField(format, 'stage', '舞台', b.stage), discordFormatField(format, 'recommendedSkills', '推奨技能', array(sc.recommendedSkills)), discordFormatField(format, 'secondarySkills', '準推奨技能', array(sc.secondarySkills)), discordFormatField(format, 'combat', '戦闘', sc.combat), discordFormatField(format, 'lostRate', 'ロスト率', sc.lostRate), sc.lostRateNote ? discordFormatField(format, 'lostRateNote', 'ロスト率補足', sc.lostRateNote) : '', discordFormatField(format, 'time', 'プレイ時間', timeLabel(b)), b.scenarioType === 'campaign' && array(c.episodes).length ? `話数：${c.episodes.length}` : '', sc.trends?.length ? discordFormatField(format, 'trends', '傾向', array(sc.trends)) : '', discordFormatField(format, 'author', '作者名', b.author), discordFormatField(format, 'url', '購入・配布URL', s.personal?.url), discordFormatField(format, 'kpStatus', 'KP状態', s.personal?.kpStatus), discordFormatField(format, 'playStatus', 'プレイ状態', s.personal?.playStatus), discordFormatField(format, 'memo', '自由メモ', s.personal?.memo)].filter(Boolean).join('\n'),
+      ho: discordHoBlocks(sc, format).join('\n\n'),
+      notes: [discordFormatField(format, 'notRecommended', '非推奨技能', sc.notRecommended), discordFormatField(format, 'notes', '注意事項', sc.notes)].filter(Boolean).join('\n')
+    };
     const codeBlock = content => ['```text', content, '```'].join('\n');
-    const sections = [codeBlock(overview), codeBlock(basic), codeBlock(ho), codeBlock(notes)];
-    return [`**${system}　${title}**`, sections.join('\n')].join('\n\n');
+    const heading = section => `【${section.title}】`;
+    const sections = format.sections.filter(section => section.enabled !== false).map(section => { const content = [heading(section), contents[section.key]].filter(Boolean).join('\n'); return format.codeBlock === false ? content : codeBlock(content); });
+    return [format.titleTemplate.replaceAll('{system}', system).replaceAll('{title}', title), sections.join('\n\n')].filter(Boolean).join('\n\n');
   }
   async function copyDiscordScenario(s) { const text = discordScenarioText(s); try { await navigator.clipboard.writeText(text); toast('Discord用テキストをコピーしました'); } catch { const area = document.createElement('textarea'); area.value = text; document.body.appendChild(area); area.select(); document.execCommand('copy'); area.remove(); toast('Discord用テキストをコピーしました'); } }
-  function tagItem(label, values) { return `<div class="data-item"><div class="data-label">${escapeHtml(label)}</div><div class="tags">${array(values).length ? array(values).map(x => `<span class="tag">${escapeHtml(x)}</span>`).join('') : '<span class="muted">未設定</span>'}</div></div>`; }
+  function tagItem(label, values) { return `<div class="data-item"><div class="data-label">${escapeHtml(label)}</div><div class="tags">${array(values).length ? array(values).map((x, index) => label === 'シナリオ傾向' ? tagMarkup(x, index) : `<span class="tag">${escapeHtml(x)}</span>`).join('') : '<span class="muted">未設定</span>'}</div></div>`; }
   function urlItem(label, value) { return `<div class="data-item"><div class="data-label">${escapeHtml(label)}</div><div class="data-value">${value ? `<a class="url" href="${escAttr(value)}" target="_blank" rel="noopener">${escapeHtml(value)} ↗</a>` : '<span class="muted">未設定</span>'}</div></div>`; }
   function countTypeLabel(v) { return ({ fixed: '固定人数', range: '範囲指定', free: '自由入力' }[v] || '未設定'); }
   function timeTypeLabel(v) { return ({ fixed: '固定時間', range: '範囲指定', free: '自由入力' }[v] || '未設定'); }
   async function confirmDelete(s) { const run = async () => { await remove('scenarios', s.id); await refreshData(); toast('シナリオを削除しました'); go('list'); }; if (!state.settings.confirmDelete) return run(); showModal('シナリオを削除しますか？', `「${s.basic?.title || '無題のシナリオ'}」を削除すると元に戻せません。`, run, '削除する'); }
 
-  function blankData() { return { favorite: false, basic: { title: '', system: '', version: '', author: '', scenarioType: 'normal', countType: 'fixed', fixedCount: '', minCount: '', maxCount: '', freeCount: '', timeType: 'fixed', fixedTime: '', fixedTimeValue: '', fixedTimeUnit: '時間', minTime: '', minTimeValue: '', minTimeUnit: '時間', maxTime: '', maxTimeValue: '', maxTimeUnit: '時間', freeTime: '', stage: '' }, campaign: { episodeCount: 0, episodes: [] }, scenario: { recommendedSkills: [], secondarySkills: [], notRecommended: '', lostRate: '', lostRateNote: '', hoType: '', hoContent: '', trends: [], combat: '', notes: '' }, trailer: { text: '', images: [] }, personal: { url: '', kpStatus: '', playStatus: '', memo: '' } }; }
+  function blankData() { return { favorite: false, basic: { title: '', titleReading: '', system: '', version: '', author: '', authorReading: '', scenarioType: 'normal', countType: 'fixed', fixedCount: '', minCount: '', maxCount: '', freeCount: '', timeType: 'fixed', fixedTime: '', fixedTimeValue: '', fixedTimeUnit: '時間', minTime: '', minTimeValue: '', minTimeUnit: '時間', maxTime: '', maxTimeValue: '', maxTimeUnit: '時間', freeTime: '', stage: '' }, campaign: { episodeCount: 0, episodes: [] }, scenario: { recommendedSkills: [], secondarySkills: [], notRecommended: '', lostRate: '', lostRateNote: '', hoType: '', hoContent: '', trends: [], combat: '', notes: '' }, trailer: { text: '', images: [] }, personal: { url: '', kpStatus: '', playStatus: '', memo: '' } }; }
   function inputField(label, key, value, opts = {}) { const required = opts.required ? ' <span class="required">*</span>' : ''; if (key === 'minCount' || key === 'maxCount') { const items = key === 'minCount' ? Array.from({ length: 5 }, (_, i) => String(i + 1)) : [...Array.from({ length: 15 }, (_, i) => String(i + 1)), 'KP管理できる人数']; return selectField(label, key, items, value ? String(value) : ''); } if (['fixedTime', 'minTime', 'maxTime'].includes(key)) { const match = String(value || '').match(/(\d+(?:\.\d+)?)\s*(分|時間)/); const number = match ? match[1] : ''; const unit = match ? match[2] : '時間'; return `<div class="field"><label for="${key}">${label}${required}</label><div class="time-input"><input id="${key}" name="${key}" type="number" min="0" step="any" value="${escAttr(number)}" placeholder="数値"><select id="${key}Unit" name="${key}Unit"><option value="分" ${unit === '分' ? 'selected' : ''}>分</option><option value="時間" ${unit === '時間' ? 'selected' : ''}>時間</option></select></div></div>`; } const type = opts.type || 'text'; const attrs = `${opts.placeholder ? ` placeholder="${escAttr(opts.placeholder)}"` : ''}${opts.min !== undefined ? ` min="${opts.min}"` : ''}${opts.max !== undefined ? ` max="${opts.max}"` : ''}`; return `<div class="field"><label for="${key}">${label}${required}</label><input id="${key}" name="${key}" type="${type}" value="${escAttr(value)}"${attrs}></div>`; }
   function selectField(label, key, items, value, opts = {}) { return `<div class="field"><label for="${key}">${label}${opts.required ? ' <span class="required">*</span>' : ''}</label><select id="${key}" name="${key}">${optionList(items, value, false)}</select></div>`; }
   function textareaField(label, key, value, placeholder = '') { return `<div class="field"><label for="${key}">${label}</label><textarea id="${key}" name="${key}" placeholder="${escAttr(placeholder)}">${escapeHtml(value)}</textarea></div>`; }
@@ -252,12 +289,32 @@
     } catch { toast('対応していないJSONファイルです', true); }
   }
 
-  function renderSettings() { const s = state.settings; page(`<div class="page-title-row"><div><h1 class="page-title">設定</h1><p class="page-subtitle">アプリケーション全体の設定を変更できます。</p></div></div><form id="settings-form"><div class="settings-grid"><section class="section-card settings-card"><h2>表示設定</h2><div class="setting-row"><div class="setting-copy"><strong>テーマ</strong><small>アプリ全体の表示テーマ</small></div><select name="theme"><option value="light" ${s.theme === 'light' ? 'selected' : ''}>ライト</option><option value="dark" ${s.theme === 'dark' ? 'selected' : ''}>ダーク</option><option value="system" ${s.theme === 'system' ? 'selected' : ''}>システム設定に合わせる</option></select></div></section><section class="section-card settings-card"><h2>データ設定</h2><div class="setting-row"><div class="setting-copy"><strong>削除時に確認ダイアログを表示する</strong><small>誤操作による削除を防ぎます</small></div><label class="toggle"><input name="confirmDelete" type="checkbox" ${s.confirmDelete ? 'checked' : ''}><span></span></label></div><div class="setting-row"><div class="setting-copy"><strong>保存後にバックアップを促す</strong><small>保存完了後に案内を表示します</small></div><label class="toggle"><input name="promptBackup" type="checkbox" ${s.promptBackup ? 'checked' : ''}><span></span></label></div></section><section class="section-card settings-card"><h2>アプリ情報</h2><dl class="about-list"><dt>アプリ名</dt><dd>${APP_NAME}</dd><dt>バージョン</dt><dd>1.0.0</dd><dt>開発者</dt><dd>TRPG Scenario Manager</dd><dt>ライセンス</dt><dd>未設定</dd></dl></section></div><div class="form-actions"><button type="button" class="btn" data-action="cancel">キャンセル</button><div class="action-right"><button type="submit" class="btn primary">保存</button></div></div></form>`, 'settings'); document.querySelector('#settings-form').addEventListener('submit', async e => { e.preventDefault(); const fd = new FormData(e.target); state.settings = { theme: fd.get('theme'), confirmDelete: fd.get('confirmDelete') === 'on', promptBackup: fd.get('promptBackup') === 'on' }; await saveSettings(); toast('設定を保存しました'); }); document.querySelector('[data-action="cancel"]').addEventListener('click', () => go('list')); }
+  function renderDiscordFormat() {
+    const format = normalizeDiscordFormat(state.settings.discordFormat);
+    const fieldLabels = [['system', 'システム'], ['count', '人数'], ['stage', '舞台'], ['recommendedSkills', '推奨技能'], ['secondarySkills', '準推奨技能'], ['combat', '戦闘'], ['lostRate', 'ロスト率'], ['lostRateNote', 'ロスト率補足'], ['time', 'プレイ時間'], ['trends', '傾向'], ['notRecommended', '非推奨技能'], ['notes', '注意事項'], ['author', '作者名'], ['url', '購入・配布URL'], ['kpStatus', 'KP状態'], ['playStatus', 'プレイ状態'], ['memo', '自由メモ']];
+    page(`<div class="page-title-row"><div><h1 class="page-title">Discord形式</h1><p class="page-subtitle">現在のコピペ形式を基準に、表示する項目や順番をアレンジできます。</p></div></div><form id="discord-format-form"><div class="format-layout"><div><section class="section-card format-card"><h2 class="section-heading">タイトルと全体設定</h2><div class="field"><label for="discord-title-template">タイトル形式</label><input id="discord-title-template" name="titleTemplate" value="${escAttr(format.titleTemplate)}"><small>{system} はシステム名、{title} はシナリオ名に置き換わります。</small></div><div class="setting-row format-toggle"><div class="setting-copy"><strong>各区分をコードブロックで囲む</strong><small>現在の形式ではオンです。</small></div><label class="toggle"><input name="codeBlock" type="checkbox" ${format.codeBlock !== false ? 'checked' : ''}><span></span></label></div><div class="setting-row format-toggle"><div class="setting-copy"><strong>コードブロック内の項目タイトルを表示する</strong><small>オフにすると「システム：」「人数：」などのラベルを外します。</small></div><label class="toggle"><input name="showLabels" type="checkbox" ${format.showLabels !== false ? 'checked' : ''}><span></span></label></div></section><section class="section-card format-card"><h2 class="section-heading">区分の表示・順番</h2><p class="helper format-intro">チェックを外すとその区分をコピー対象から外せます。矢印で順番を変更できます。</p><div id="discord-section-list" class="format-section-list">${format.sections.map((section, index) => `<div class="format-section-row" data-key="${section.key}"><label class="check-label"><input type="checkbox" name="section-enabled-${section.key}" ${section.enabled !== false ? 'checked' : ''}><span class="format-section-name">${escapeHtml(section.key === 'overview' ? '概要' : section.key === 'basic' ? '基本情報' : section.key === 'ho' ? 'HO' : '注意点・補足事項')}</span></label><input class="format-section-title" name="section-title-${section.key}" value="${escAttr(section.title)}" aria-label="${escapeHtml(section.title)}の見出し"><button type="button" class="btn small format-move" data-direction="up" ${index === 0 ? 'disabled' : ''}>↑</button><button type="button" class="btn small format-move" data-direction="down" ${index === format.sections.length - 1 ? 'disabled' : ''}>↓</button></div>`).join('')}</div></section><section class="section-card format-card"><h2 class="section-heading">項目の表示・ラベル</h2><p class="helper format-intro">チェックを外すと項目を非表示にできます。ラベルを変更するとDiscord上の表記も変わります。作者名・URL・KP状態などは追加項目です。</p><div class="format-field-list">${fieldLabels.map(([key, fallback]) => `<div class="format-field-row"><label class="check-label"><input type="checkbox" name="field-enabled-${key}" ${format.fields[key].enabled !== false ? 'checked' : ''}><span>${fallback}</span></label><input name="field-label-${key}" value="${escAttr(format.fields[key].label || fallback)}" aria-label="${fallback}のラベル"></div>`).join('')}</div></section></div><aside class="section-card format-preview-card"><h2 class="section-heading">プレビュー</h2><pre id="discord-format-preview" class="discord-preview"></pre><p class="helper">登録済みシナリオがある場合は、先頭のシナリオを使って表示します。</p></aside></div><div class="form-actions"><button type="button" class="btn" data-action="cancel">キャンセル</button><div class="action-right"><button type="button" class="btn soft" data-action="format-reset">初期形式に戻す</button><button type="submit" class="btn primary">保存</button></div></div></form>`, 'discord-format');
+    bindDiscordFormat(format, fieldLabels);
+  }
+  function bindDiscordFormat(format, fieldLabels) {
+    const form = document.querySelector('#discord-format-form');
+    const preview = document.querySelector('#discord-format-preview');
+    const currentScenario = state.scenarios[0] || normalizeScenario({ ...blankData(), basic: { ...blankData().basic, title: 'サンプルシナリオ', system: 'クトゥルフ神話TRPG（7版）', fixedCount: 4, fixedTime: '3時間' }, trailer: { text: 'ここにトレーラー文章が入ります。' } });
+    const read = () => ({ titleTemplate: form.elements.titleTemplate.value || defaultDiscordFormat().titleTemplate, codeBlock: form.elements.codeBlock.checked, showLabels: form.elements.showLabels.checked, sections: [...document.querySelectorAll('.format-section-row')].map(row => ({ key: row.dataset.key, title: row.querySelector('.format-section-title').value || row.querySelector('.format-section-name').textContent, enabled: row.querySelector('input[type="checkbox"]').checked })), fields: Object.fromEntries(fieldLabels.map(([key, fallback]) => [key, { enabled: form.elements[`field-enabled-${key}`].checked, label: form.elements[`field-label-${key}`].value || fallback }])) });
+    const updatePreview = () => { state.settings.discordFormat = read(); preview.textContent = discordScenarioText(currentScenario); };
+    form.addEventListener('input', updatePreview);
+    form.querySelectorAll('.format-move').forEach(button => button.addEventListener('click', () => { const row = button.closest('.format-section-row'); const sibling = button.dataset.direction === 'up' ? row.previousElementSibling : row.nextElementSibling; if (!sibling) return; if (button.dataset.direction === 'up') row.parentElement.insertBefore(row, sibling); else row.parentElement.insertBefore(sibling, row); [...row.parentElement.children].forEach((item, index, items) => { item.querySelector('[data-direction="up"]').disabled = index === 0; item.querySelector('[data-direction="down"]').disabled = index === items.length - 1; }); updatePreview(); }));
+    form.querySelector('[data-action="format-reset"]').addEventListener('click', () => { state.settings.discordFormat = defaultDiscordFormat(); renderDiscordFormat(); });
+    form.querySelector('[data-action="cancel"]').addEventListener('click', () => go('list'));
+    form.addEventListener('submit', async event => { event.preventDefault(); state.settings.discordFormat = read(); await saveSettings(); toast('Discord形式を保存しました'); });
+    updatePreview();
+  }
+
+  function renderSettings() { const s = state.settings; page(`<div class="page-title-row"><div><h1 class="page-title">設定</h1><p class="page-subtitle">アプリケーション全体の設定を変更できます。</p></div></div><form id="settings-form"><div class="settings-grid"><section class="section-card settings-card"><h2>表示設定</h2><div class="setting-row"><div class="setting-copy"><strong>テーマ</strong><small>アプリ全体の表示テーマ</small></div><select name="theme"><option value="light" ${s.theme === 'light' ? 'selected' : ''}>ライト</option><option value="dark" ${s.theme === 'dark' ? 'selected' : ''}>ダーク</option><option value="system" ${s.theme === 'system' ? 'selected' : ''}>システム設定に合わせる</option></select></div></section><section class="section-card settings-card"><h2>データ設定</h2><div class="setting-row"><div class="setting-copy"><strong>削除時に確認ダイアログを表示する</strong><small>誤操作による削除を防ぎます</small></div><label class="toggle"><input name="confirmDelete" type="checkbox" ${s.confirmDelete ? 'checked' : ''}><span></span></label></div><div class="setting-row"><div class="setting-copy"><strong>保存後にバックアップを促す</strong><small>保存完了後に案内を表示します</small></div><label class="toggle"><input name="promptBackup" type="checkbox" ${s.promptBackup ? 'checked' : ''}><span></span></label></div></section><section class="section-card settings-card"><h2>アプリ情報</h2><dl class="about-list"><dt>アプリ名</dt><dd>${APP_NAME}</dd><dt>バージョン</dt><dd>1.0.0</dd><dt>開発者</dt><dd>TRPG Scenario Manager</dd><dt>ライセンス</dt><dd>未設定</dd></dl></section></div><div class="form-actions"><button type="button" class="btn" data-action="cancel">キャンセル</button><div class="action-right"><button type="submit" class="btn primary">保存</button></div></div></form>`, 'settings'); document.querySelector('#settings-form').addEventListener('submit', async e => { e.preventDefault(); const fd = new FormData(e.target); state.settings = { ...state.settings, theme: fd.get('theme'), confirmDelete: fd.get('confirmDelete') === 'on', promptBackup: fd.get('promptBackup') === 'on' }; await saveSettings(); toast('設定を保存しました'); }); document.querySelector('[data-action="cancel"]').addEventListener('click', () => go('list')); }
 
   function showModal(title, message, onConfirm, confirmLabel = '確認する') { const root = document.querySelector('#modal-root'); root.innerHTML = `<div class="modal-backdrop"><div class="modal" role="dialog" aria-modal="true"><h2>${escapeHtml(title)}</h2><p>${escapeHtml(message)}</p><div class="modal-actions"><button class="btn" data-modal-cancel>キャンセル</button><button class="btn danger" data-modal-confirm>${escapeHtml(confirmLabel)}</button></div></div></div>`; root.querySelector('[data-modal-cancel]').addEventListener('click', () => root.innerHTML = ''); root.querySelector('[data-modal-confirm]').addEventListener('click', async () => { root.innerHTML = ''; await onConfirm(); }); }
 
   function resetScrollPosition() { window.scrollTo(0, 0); document.documentElement.scrollTop = 0; document.body.scrollTop = 0; }
-  async function render() { routeFromHash(); const update = () => { if (state.route.page === 'detail') { renderDetail(state.route.id); resetScrollPosition(); } else if (state.route.page === 'edit') renderEdit(state.route.id || 'new'); else if (state.route.page === 'backup') renderBackup(); else if (state.route.page === 'settings') renderSettings(); else renderList(); }; if (document.startViewTransition && document.querySelector('#app')?.children.length) document.startViewTransition(update); else update(); }
+  async function render() { if (state.route.page === 'detail' && location.hash === '#list') captureDetailTransition(state.route.id); routeFromHash(); if (state.route.page === 'detail') { resetScrollPosition(); renderDetail(state.route.id); } else if (state.route.page === 'edit') renderEdit(state.route.id || 'new'); else if (state.route.page === 'backup') renderBackup(); else if (state.route.page === 'discord-format') renderDiscordFormat(); else if (state.route.page === 'settings') renderSettings(); else renderList(); }
   window.addEventListener('hashchange', render);
   window.addEventListener('storage', applyTheme);
   (async () => { try { await openDb(); await refreshData(); await render(); } catch (error) { console.error(error); document.querySelector('#app').innerHTML = '<main class="page"><div class="empty-state"><h2>アプリを起動できませんでした</h2><p>ブラウザのIndexedDBが利用できる環境で再読み込みしてください。</p></div></main>'; } })();
@@ -273,7 +330,30 @@
   function syncHoFields() { const host = document.querySelector('#ho-items'); if (!host) return; const make = () => { let type = host.querySelector('input[name="hoType"]'); let content = host.querySelector('input[name="hoContent"]'); if (!type) { host.insertAdjacentHTML('afterbegin', '<input type="hidden" name="hoType"><input type="hidden" name="hoContent">'); type = host.querySelector('input[name="hoType"]'); content = host.querySelector('input[name="hoContent"]'); } type.value = host.querySelector('[name="ho-global-type"]')?.value || ''; content.value = [...host.querySelectorAll('[name="ho-content"]')].map(input => input.value).join('\u001e'); }; host.addEventListener('input', make); host.addEventListener('change', make); host.addEventListener('click', () => setTimeout(make, 0)); make(); }
   function hoTypeLabel(value) { return String(value || '').split('\u001f').filter(Boolean).join(' / '); }
   function transitionName(id) { return `scenario-image-${String(id).replace(/[^a-zA-Z0-9_-]/g, '_')}`; }
-  function scenarioCard(s) { const b = s.basic || {}, sc = s.scenario || {}, p = s.personal || {}, image = array(s.trailer?.images)[0], favorite = Boolean(s.favorite), imageTransition = transitionName(s.id); return `<article class="scenario-card" data-id="${s.id}"><div class="card-image ${image ? '' : 'placeholder'}" style="view-transition-name: ${imageTransition}">${image ? `<img class="card-image" src="${image}" alt="${escAttr(b.title)}のトレーラー画像">` : '✦'}</div><div class="card-body"><div class="card-title-row"><h2 class="card-title">${display(b.title)}</h2><button class="favorite ${favorite ? 'active' : ''}" type="button" data-action="favorite" aria-label="${favorite ? 'お気に入りから外す' : 'お気に入りに追加'}" aria-pressed="${favorite}">${favorite ? '★' : '☆'}</button></div><div class="card-system">${display(b.system)}${b.version ? ` / ${escapeHtml(b.version)}` : ''}</div><div class="card-facts"><span>${escapeHtml(personLabel(b))}</span><span>|</span><span>${escapeHtml(timeLabel(b))}</span></div><div class="tags">${sc.hoType ? `<span class="tag">HO形式：${escapeHtml(hoTypeLabel(sc.hoType))}</span>` : ''}${array(sc.trends).slice(0, 3).map(x => `<span class="tag">${escapeHtml(x)}</span>`).join('')}</div><div class="card-status">ロスト率：${display(sc.lostRate)}　|　${escapeHtml(p.kpStatus || '未KP')}・${escapeHtml(p.playStatus || '未通過')}</div></div></article>`; }
+  function captureDetailTransition(id) {
+    const image = document.querySelector('.hero-images img, .hero-images .placeholder');
+    const rect = image?.getBoundingClientRect();
+    if (!rect || !id) return;
+    state.pendingScenarioTransition = { id, rect: { left: rect.left, top: rect.top, width: rect.width, height: rect.height } };
+  }
+  function animateScenarioTransition(id, target = document.querySelector('.hero-images img, .hero-images .placeholder')) {
+    const pending = state.pendingScenarioTransition;
+    if (!pending || pending.id !== id) { state.pendingScenarioTransition = null; return; }
+    if (!target) { state.pendingScenarioTransition = null; return; }
+    const targetRect = target.getBoundingClientRect();
+    const source = target.cloneNode(true);
+    source.removeAttribute('style');
+    target.style.opacity = '0';
+    Object.assign(source.style, {
+      position: 'fixed', left: `${pending.rect.left}px`, top: `${pending.rect.top}px`, width: `${pending.rect.width}px`, height: `${pending.rect.height}px`,
+      margin: '0', zIndex: '1000', pointerEvents: 'none', objectFit: 'cover', borderRadius: '14px', transition: 'left .68s cubic-bezier(.16,1,.3,1), top .68s cubic-bezier(.16,1,.3,1), width .68s cubic-bezier(.16,1,.3,1), height .68s cubic-bezier(.16,1,.3,1), border-radius .68s cubic-bezier(.16,1,.3,1)'
+    });
+    document.body.appendChild(source);
+    requestAnimationFrame(() => Object.assign(source.style, { left: `${targetRect.left}px`, top: `${targetRect.top}px`, width: `${targetRect.width}px`, height: `${targetRect.height}px`, borderRadius: '0' }));
+    setTimeout(() => { source.remove(); target.style.opacity = ''; }, 760);
+    state.pendingScenarioTransition = null;
+  }
+  function scenarioCard(s) { const b = s.basic || {}, sc = s.scenario || {}, p = s.personal || {}, image = array(s.trailer?.images)[0], favorite = Boolean(s.favorite), imageTransition = transitionName(s.id); return `<article class="scenario-card" data-id="${escAttr(s.id)}"><div class="card-image ${image ? '' : 'placeholder'}">${image ? `<img class="card-image" src="${escAttr(image.src)}" style="view-transition-name: ${imageTransition}" alt="${escAttr(b.title)}のトレーラー画像">` : '✦'}</div><div class="card-body"><div class="card-title-row"><h2 class="card-title">${display(b.title)}</h2><button class="favorite ${favorite ? 'active' : ''}" type="button" data-action="favorite" aria-label="${favorite ? 'お気に入りから外す' : 'お気に入りに追加'}" aria-pressed="${favorite}">${favorite ? '★' : '☆'}</button></div><div class="card-system">${display(b.system)}${b.version ? ` / ${escapeHtml(b.version)}` : ''}</div><div class="card-author">作者名：${display(b.author)}</div><div class="card-facts"><span>${escapeHtml(personLabel(b))}</span><span>|</span><span>${escapeHtml(timeLabel(b))}</span></div><div class="tags">${sc.hoType ? `<span class="tag">HO形式：${escapeHtml(hoTypeLabel(sc.hoType))}</span>` : ''}${array(sc.trends).slice(0, 3).map((x, index) => tagMarkup(x, index)).join('')}</div><div class="card-status">ロスト率：${display(sc.lostRate)}　|　${escapeHtml(p.kpStatus || '未KP')}・${escapeHtml(p.playStatus || '未通過')}</div></div></article>`; }
   function normalizeHoItems(scenario = {}) { if (Array.isArray(scenario.hoItems) && scenario.hoItems.length) return scenario.hoItems.map(item => ({ type: item.type || '', content: item.content || '' })); const types = String(scenario.hoType || '').split('\u001f'); const contents = String(scenario.hoContent || '').split('\u001e'); const total = Math.max(types.length, contents.length); return total && (types.some(Boolean) || contents.some(Boolean)) ? Array.from({ length: total }, (_, index) => ({ type: types[index] || '', content: contents[index] || '' })) : [{ type: '', content: '' }]; }
   const detailRender = renderDetail;
   renderDetail = id => {
@@ -317,10 +397,95 @@
     const scenario = state.scenarios.find(item => item.id === id);
     if (!scenario) return;
     const images = array(scenario.trailer?.images);
-    ['.hero-images img', '.trailer-images img'].forEach(selector => document.querySelectorAll(selector).forEach((element, index) => {
+    document.querySelectorAll('.detail-carousel').forEach(carousel => carousel.querySelectorAll('.carousel-slide').forEach((element, index) => {
       const image = images[index];
       if (image) { element.src = image.src; element.style.cssText = `${element.style.cssText};${imagePositionStyle(image)};${imageZoomStyle(image)}`; }
     }));
+  };
+  const carouselDetailRender = renderDetail;
+  renderDetail = id => {
+    carouselDetailRender(id);
+    animateScenarioTransition(id);
+    document.querySelectorAll('.detail-carousel').forEach(carousel => {
+      const track = carousel.querySelector('.carousel-track');
+      const slides = [...carousel.querySelectorAll('.carousel-slide')];
+      if (!track || slides.length < 2) return;
+      const firstClone = slides[0].cloneNode(true);
+      const lastClone = slides[slides.length - 1].cloneNode(true);
+      firstClone.classList.remove('active');
+      lastClone.classList.remove('active');
+      firstClone.setAttribute('aria-hidden', 'true');
+      lastClone.setAttribute('aria-hidden', 'true');
+      track.insertBefore(lastClone, slides[0]);
+      track.appendChild(firstClone);
+      const allSlides = [lastClone, ...slides, firstClone];
+      const slideCount = slides.length;
+      let current = 0;
+      let resetting = false;
+      let settleTimer = null;
+      const counter = carousel.querySelector('.carousel-counter');
+      const sync = () => {
+        allSlides.forEach((slide, slideIndex) => {
+          const active = slideIndex === current + 1;
+          slide.classList.toggle('active', active);
+          slide.setAttribute('aria-hidden', String(!active));
+        });
+        if (counter) counter.textContent = `${current + 1} / ${slideCount}`;
+      };
+      const show = (index, behavior = 'smooth') => {
+        const targetIndex = index < 0 ? 0 : index >= slideCount ? slideCount + 1 : index + 1;
+        current = (index + slideCount) % slideCount;
+        sync();
+        const left = targetIndex * track.clientWidth;
+        if (track.scrollTo) track.scrollTo({ left, behavior });
+        else track.scrollLeft = left;
+      };
+      track.scrollLeft = track.clientWidth;
+      sync();
+      const normalizeLoopPosition = () => {
+        if (resetting) return;
+        const width = track.clientWidth;
+        if (!width) return;
+        const rawIndex = Math.round(track.scrollLeft / width);
+        if (rawIndex !== 0 && rawIndex !== slideCount + 1) return;
+        resetting = true;
+        track.style.scrollSnapType = 'none';
+        current = rawIndex === 0 ? slideCount - 1 : 0;
+        track.scrollLeft = current === 0 ? width : slideCount * width;
+        sync();
+        requestAnimationFrame(() => {
+          track.style.scrollSnapType = 'x mandatory';
+          resetting = false;
+        });
+      };
+      carousel.querySelector('[data-carousel-prev]')?.addEventListener('click', () => show(current - 1));
+      carousel.querySelector('[data-carousel-next]')?.addEventListener('click', () => show(current + 1));
+      carousel.addEventListener('keydown', event => {
+        if (event.key === 'ArrowLeft') { event.preventDefault(); show(current - 1); }
+          if (event.key === 'ArrowRight') { event.preventDefault(); show(current + 1); }
+      });
+      track?.addEventListener('scroll', () => {
+        if (resetting) return;
+        const width = track.clientWidth;
+        if (!width) return;
+        const rawIndex = Math.round(track.scrollLeft / width);
+        if (rawIndex === 0) {
+          current = slideCount - 1;
+          sync();
+          clearTimeout(settleTimer);
+          settleTimer = setTimeout(normalizeLoopPosition, 140);
+        } else if (rawIndex === slideCount + 1) {
+          current = 0;
+          sync();
+          clearTimeout(settleTimer);
+          settleTimer = setTimeout(normalizeLoopPosition, 140);
+        } else if (rawIndex >= 1 && rawIndex <= slideCount) {
+          clearTimeout(settleTimer);
+          const next = rawIndex - 1;
+          if (next !== current) { current = next; sync(); }
+        }
+      }, { passive: true });
+    });
   };
   const listRender = renderList;
   renderList = () => {
@@ -331,6 +496,11 @@
       const element = card?.querySelector('img.card-image');
       if (image && element) { element.src = image.src; element.style.cssText = `${element.style.cssText};${imagePositionStyle(image)};${imageZoomStyle(image)}`; }
     });
+    const pending = state.pendingScenarioTransition;
+    if (pending) {
+      const card = [...document.querySelectorAll('.scenario-card')].find(element => element.dataset.id === pending.id);
+      animateScenarioTransition(pending.id, card?.querySelector('img.card-image') || card?.querySelector('.card-image'));
+    }
   };
   renderPreviews = () => {
     const root = document.querySelector('#image-previews');
@@ -368,4 +538,28 @@
       }, { passive: false });
     });
   };
+  function setupReadingFields() {
+    const form = document.querySelector('#scenario-form');
+    if (!form) return;
+    [['title', 'titleReading', 'タイトルの読み方', '例：しなりおのたいとる'], ['author', 'authorReading', '作者名の読み方', '例：やまだ たろう']].forEach(([sourceName, readingName, labelText, placeholder]) => {
+      const source = form.elements[sourceName];
+      if (!source || form.elements[readingName]) return;
+      const field = document.createElement('div');
+      field.className = 'field';
+      field.innerHTML = `<label for="${readingName}">${labelText}</label><input id="${readingName}" name="${readingName}" placeholder="${placeholder}">`;
+      source.closest('.field')?.insertAdjacentElement('afterend', field);
+      const scenario = state.route.id && state.route.id !== 'new' ? detail(state.route.id) : null;
+      field.querySelector('input').value = scenario?.basic?.[readingName] || '';
+    });
+  }
+  const baseReadForm = readForm;
+  readForm = () => {
+    const data = baseReadForm();
+    const form = document.querySelector('#scenario-form');
+    data.basic.titleReading = form?.elements.titleReading?.value.trim() || '';
+    data.basic.authorReading = form?.elements.authorReading?.value.trim() || '';
+    return data;
+  };
+  const baseBindEdit = bindEdit;
+  bindEdit = (...args) => { baseBindEdit(...args); setupReadingFields(); };
 })();
