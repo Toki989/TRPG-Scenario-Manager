@@ -440,8 +440,11 @@ body[data-theme="dark"] .notice { background: #3c321d; border-color: #6b5725; }
 
 @media (max-width: 480px) {
   .app-header { gap: 8px 10px; }
+  .brand > span:last-child { display: none; }
   .header-actions { gap: 6px; }
   .header-actions .btn { padding-inline: 10px; }
+  .header-actions [data-action="new"] { width: 42px; min-width: 42px; padding-inline: 0; font-size: 0; }
+  .header-actions [data-action="new"]::before { content: "＋"; font-size: 21px; }
   .page { width: calc(100% - 20px); margin-top: 14px; }
   .page-title { font-size: 23px; }
   .page-subtitle { font-size: 13px; }
