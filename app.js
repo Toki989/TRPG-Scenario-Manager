@@ -8,6 +8,7 @@
   const BACKUP_VERSION = 2;
   const FIRST_SUPPORTED_BACKUP_VERSION = 1;
   const APP_NAME = 'TRPG Scenario Manager';
+  const APP_VERSION = '1.0.1';
   const BACKUP_DIRECTORY_NAME = 'TRPG Scenario Manager Backups';
 
   const MASTER = {
@@ -21,7 +22,7 @@
     trends: ['ホラー', '推理', '謎解き', '戦闘', 'RP重視', 'エモーショナル', 'シリアス', '愉快', 'ギャグ', '刑事', '青春', '恋愛', 'うちよそ', '探索重視', '高難易度', '初心者向け', '秘匿HO', 'クローズド', 'シティ']
   };
 
-  const state = { route: {}, scenarios: [], drafts: [], settings: { theme: 'light', confirmDelete: true, promptBackup: false, discordFormat: defaultDiscordFormat() }, filters: { keyword: '', system: '', count: '', time: '', lost: '', trend: '', play: '', kp: '', combat: '', sort: 'updatedAt-desc' }, editImages: [], editHoItems: [{ type: '', content: '' }], editHoType: '', activeDraftId: null, pendingScenarioTransition: null };
+  const state = { route: {}, scenarios: [], drafts: [], settings: { theme: 'light', confirmDelete: true, promptBackup: false, discordFormat: defaultDiscordFormat() }, filters: { keyword: '', system: '', favorite: '', count: '', time: '', lost: '', trend: '', play: '', kp: '', combat: '', sort: 'updatedAt-desc' }, editImages: [], editHoItems: [{ type: '', content: '' }], editHoType: '', activeDraftId: null, pendingScenarioTransition: null };
   let db;
 
   function uid(prefix) { return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`; }
@@ -64,7 +65,7 @@
   }
   function go(page, id = '') { location.hash = id ? `#${page}/${id}` : `#${page}`; }
   function header(active) {
-    return `<header class="app-header"><a class="brand" href="#list">${APP_NAME}</a><nav class="main-nav" aria-label="メインナビゲーション"><a class="nav-link ${active === 'list' ? 'active' : ''}" href="#list">一覧</a><a class="nav-link ${active === 'backup' ? 'active' : ''}" href="#backup">バックアップ</a><a class="nav-link ${active === 'discord-format' ? 'active' : ''}" href="#discord-format">Discord形式</a><a class="nav-link ${active === 'settings' ? 'active' : ''}" href="#settings">設定</a></nav><div class="header-actions"><div class="search-box"><span>⌕</span><input id="global-search" type="search" placeholder="検索（タイトル・作者・舞台など）" value="${escAttr(state.filters.keyword)}" aria-label="キーワード検索"></div><button class="btn primary" data-action="new">＋ 新規登録</button></div></header>`;
+    return `<header class="app-header"><a class="brand" href="#list"><span class="brand-icon-frame"><img class="brand-icon brand-icon-base" src="appIcon2.png" alt=""><img class="brand-icon brand-icon-red" src="appIcon2.png" alt=""></span><span>${APP_NAME}</span></a><nav class="main-nav" aria-label="メインナビゲーション"><a class="nav-link ${active === 'list' ? 'active' : ''}" href="#list">一覧</a><a class="nav-link ${active === 'backup' ? 'active' : ''}" href="#backup">バックアップ</a><a class="nav-link ${active === 'discord-format' ? 'active' : ''}" href="#discord-format">Discord形式</a><a class="nav-link ${active === 'settings' ? 'active' : ''}" href="#settings">設定</a></nav><div class="header-actions"><div class="search-box"><span>⌕</span><input id="global-search" type="search" placeholder="検索（タイトル・作者・舞台など）" value="${escAttr(state.filters.keyword)}" aria-label="キーワード検索"></div><button class="btn primary" data-action="new">＋ 新規登録</button></div></header>`;
   }
   function page(content, active) { document.querySelector('#app').innerHTML = `${header(active)}<main class="page">${content}</main>`; removeVersionField(); bindGlobal(); if (content.includes('id="scenario-form"')) { setupHoFields(); repairHoTypeField(); syncHoFields(); setupCampaignFields(); addKpLessOption(); adjustCampaignLayout(); } }
   function removeVersionField() {
@@ -85,7 +86,13 @@
     if (!isObject(image) || typeof image.src !== 'string' || !image.src) return null;
     return { src: image.src, position: { x: image.position?.x === undefined ? 50 : clamp(image.position.x, 0, 100), y: image.position?.y === undefined ? 50 : clamp(image.position.y, 0, 100) }, zoom: image.zoom === undefined ? 1 : clamp(image.zoom, 1, 3) };
   }
-  function imagePositionStyle(image) { const position = image?.position || {}; return `object-position: ${position.x === undefined ? 50 : clamp(position.x, 0, 100)}% ${position.y === undefined ? 50 : clamp(position.y, 0, 100)}%`; }
+  function imagePositionStyle(image) {
+    // At 1x there is no crop area to pan, so a stale/legacy position must not
+    // make an otherwise normal image appear off-center.
+    if (imageZoom(image) <= 1) return 'object-position: 50% 50%';
+    const position = image?.position || {};
+    return `object-position: ${position.x === undefined ? 50 : clamp(position.x, 0, 100)}% ${position.y === undefined ? 50 : clamp(position.y, 0, 100)}%`;
+  }
   function imageZoom(image) { return image?.zoom === undefined ? 1 : clamp(image.zoom, 1, 3); }
   function imageZoomStyle(image) { const zoom = imageZoom(image); const x = image?.position?.x === undefined ? 50 : clamp(image.position.x, 0, 100); const y = image?.position?.y === undefined ? 50 : clamp(image.position.y, 0, 100); return `transform: translate(${(50 - x) * (zoom - 1)}%, ${(50 - y) * (zoom - 1)}%) scale(${zoom}); transform-origin: center`; }
   function normalizeScenario(scenario, index = 0) {
@@ -175,12 +182,18 @@
   function matchesTimeFilter(b, value) { const filter = timeFilters.find(item => item.value === value); const range = scenarioTimeRange(b); if (!filter || !range) return false; const [min, max] = range; return filter.max === Infinity ? max >= filter.min : filter.value === 'within-1' ? min <= filter.max && max >= filter.min : max > filter.min && min <= filter.max; }
   function filteredScenarios() {
     const f = state.filters; let result = state.scenarios.filter(s => { const b = s.basic || {}, sc = s.scenario || {}, p = s.personal || ''; const keyword = f.keyword.trim().toLowerCase(); if (keyword && !scenarioText(s).includes(keyword)) return false; if (f.system && b.system !== f.system) return false; if (f.version && b.version !== f.version) return false; if (f.lost && sc.lostRate !== f.lost) return false; if (f.trend && !array(sc.trends).includes(f.trend)) return false; if (f.play && p.playStatus !== f.play) return false; if (f.kp && p.kpStatus !== f.kp) return false; if (f.combat && sc.combat !== f.combat) return false; if (f.count && !personLabel(b).includes(f.count)) return false; if (f.time && !matchesTimeFilter(b, f.time)) return false; return true; }); const [key, dir] = f.sort.split('-'); result.sort((a, b) => { let av = key === 'title' ? a.basic.title : key === 'author' ? a.basic.author : a[key]; let bv = key === 'title' ? b.basic.title : key === 'author' ? b.basic.author : b[key]; av = av || ''; bv = bv || ''; const cmp = key === 'title' ? compareTitles(a.basic.title, b.basic.title, a.basic.titleReading, b.basic.titleReading) : key === 'author' ? compareReading(a.basic.author, b.basic.author, a.basic.authorReading, b.basic.authorReading) : typeof av === 'string' ? av.localeCompare(bv, 'ja') : av - bv; return dir === 'asc' ? cmp : -cmp; }); return result; }
+  const baseFilteredScenarios = filteredScenarios;
+  filteredScenarios = () => { const result = baseFilteredScenarios(); return state.filters.favorite === 'favorite' ? result.filter(s => s.favorite) : result; };
   function selectFilter(id, label, items, value, includeAll = true) { return `<div class="field"><label for="${id}">${label}</label><select id="${id}">${optionList(items, value, includeAll)}</select></div>`; }
 
   function renderList() {
     const f = state.filters; const items = filteredScenarios(); const cards = items.map(scenarioCard).join('');
     const sortOptions = [{ value: 'updatedAt-desc', label: '更新日（新しい順）' }, { value: 'updatedAt-asc', label: '更新日（古い順）' }, { value: 'title-asc', label: 'タイトル（昇順）' }, { value: 'title-desc', label: 'タイトル（降順）' }, { value: 'author-asc', label: '作者名（昇順）' }, { value: 'author-desc', label: '作者名（降順）' }, { value: 'createdAt-desc', label: '登録日（新しい順）' }, { value: 'createdAt-asc', label: '登録日（古い順）' }];
     page(`<div class="page-title-row"><div><h1 class="page-title">シナリオ一覧</h1><p class="page-subtitle">登録したシナリオを検索・絞り込みできます。</p></div></div><section class="panel filter-panel"><div class="filter-grid">${selectFilter('filter-system', 'システム', MASTER.systems, f.system)}</div><div class="filter-actions"><div class="sort-field">${selectFilter('filter-sort', '並び替え', sortOptions, f.sort, false)}</div><button class="btn" data-action="advanced">☷ 詳細フィルター</button><div class="spacer"></div><button class="btn" data-action="reset">↻ リセット</button></div><div class="advanced-filters" id="advanced-filters">${selectFilter('filter-version', '対応版', currentVersions(f.system), f.version)}${selectFilter('filter-count', '人数', ['1人', '2人', '3人', '4人', '5人', '6人以上'], f.count)}${selectFilter('filter-time', '時間', timeFilters, f.time)}${selectFilter('filter-lost', 'ロスト率', MASTER.lostRates, f.lost)}${selectFilter('filter-trend', 'タグ（シナリオ傾向）', MASTER.trends, f.trend)}${selectFilter('filter-kp', 'KP状態', MASTER.kpStatus, f.kp)}${selectFilter('filter-combat', '戦闘の有無', MASTER.combat, f.combat)}</div></section><div class="list-meta"><span>全 ${state.scenarios.length} 件中 ${items.length} 件を表示</span><span>${items.length ? 'カードを選択して詳細を表示' : ''}</span></div>${items.length ? `<div class="scenario-grid">${cards}</div>` : `<div class="empty-state"><div class="empty-icon">📚</div><h2>${state.scenarios.length ? '条件に一致するシナリオがありません' : 'シナリオが登録されていません'}</h2><p>${state.scenarios.length ? '検索条件や絞り込み条件を変更してください。' : '「＋新規登録」からシナリオを登録してください。'}</p>${state.scenarios.length ? '<button class="btn" data-action="reset">条件をリセット</button>' : '<button class="btn primary" data-action="new">＋ 新規登録</button>'}</div>`}`, 'list');
+    const filterActions = document.querySelector('.filter-actions');
+    if (filterActions) filterActions.insertAdjacentHTML('afterbegin', selectFilter('filter-favorite', 'お気に入り', [{ value: 'favorite', label: 'お気に入りのみ' }], f.favorite));
+    document.querySelector('#filter-favorite')?.addEventListener('change', e => { state.filters.favorite = e.target.value; renderList(); });
+    document.querySelectorAll('[data-action="reset"]').forEach(el => el.addEventListener('click', () => { state.filters.favorite = ''; }, { capture: true }));
     bindList();
   }
   function currentVersions() { return []; }
@@ -366,7 +379,7 @@
     updatePreview();
   }
 
-  function renderSettings() { const s = state.settings; page(`<div class="page-title-row"><div><h1 class="page-title">設定</h1><p class="page-subtitle">アプリケーション全体の設定を変更できます。</p></div></div><form id="settings-form"><div class="settings-grid"><section class="section-card settings-card"><h2>表示設定</h2><div class="setting-row"><div class="setting-copy"><strong>テーマ</strong><small>アプリ全体の表示テーマ</small></div><select name="theme"><option value="light" ${s.theme === 'light' ? 'selected' : ''}>ライト</option><option value="dark" ${s.theme === 'dark' ? 'selected' : ''}>ダーク</option><option value="system" ${s.theme === 'system' ? 'selected' : ''}>システム設定に合わせる</option></select></div></section><section class="section-card settings-card"><h2>データ設定</h2><div class="setting-row"><div class="setting-copy"><strong>削除時に確認ダイアログを表示する</strong><small>誤操作による削除を防ぎます</small></div><label class="toggle"><input name="confirmDelete" type="checkbox" ${s.confirmDelete ? 'checked' : ''}><span></span></label></div><div class="setting-row"><div class="setting-copy"><strong>保存後にバックアップを促す</strong><small>保存完了後に案内を表示します</small></div><label class="toggle"><input name="promptBackup" type="checkbox" ${s.promptBackup ? 'checked' : ''}><span></span></label></div></section><section class="section-card settings-card"><h2>アプリ情報</h2><dl class="about-list"><dt>アプリ名</dt><dd>${APP_NAME}</dd><dt>バージョン</dt><dd>1.0.0</dd><dt>開発者</dt><dd>TRPG Scenario Manager</dd><dt>ライセンス</dt><dd>未設定</dd></dl></section></div><div class="form-actions"><button type="button" class="btn" data-action="cancel">キャンセル</button><div class="action-right"><button type="submit" class="btn primary">保存</button></div></div></form>`, 'settings'); document.querySelector('#settings-form').addEventListener('submit', async e => { e.preventDefault(); const fd = new FormData(e.target); state.settings = { ...state.settings, theme: fd.get('theme'), confirmDelete: fd.get('confirmDelete') === 'on', promptBackup: fd.get('promptBackup') === 'on' }; await saveSettings(); toast('設定を保存しました'); }); document.querySelector('[data-action="cancel"]').addEventListener('click', () => go('list')); }
+  function renderSettings() { const s = state.settings; page(`<div class="page-title-row"><div><h1 class="page-title">設定</h1><p class="page-subtitle">アプリケーション全体の設定を変更できます。</p></div></div><form id="settings-form"><div class="settings-grid"><section class="section-card settings-card"><h2>表示設定</h2><div class="setting-row"><div class="setting-copy"><strong>テーマ</strong><small>アプリ全体の表示テーマ</small></div><select name="theme"><option value="light" ${s.theme === 'light' ? 'selected' : ''}>ライト</option><option value="middle" ${s.theme === 'middle' ? 'selected' : ''}>中間</option><option value="dark" ${s.theme === 'dark' ? 'selected' : ''}>ダーク</option><option value="system" ${s.theme === 'system' ? 'selected' : ''}>システム設定に合わせる</option></select></div></section><section class="section-card settings-card"><h2>データ設定</h2><div class="setting-row"><div class="setting-copy"><strong>削除時に確認ダイアログを表示する</strong><small>誤操作による削除を防ぎます</small></div><label class="toggle"><input name="confirmDelete" type="checkbox" ${s.confirmDelete ? 'checked' : ''}><span></span></label></div><div class="setting-row"><div class="setting-copy"><strong>保存後にバックアップを促す</strong><small>保存完了後に案内を表示します</small></div><label class="toggle"><input name="promptBackup" type="checkbox" ${s.promptBackup ? 'checked' : ''}><span></span></label></div></section><section class="section-card settings-card"><h2>アプリ情報</h2><dl class="about-list"><dt>アプリ名</dt><dd>${APP_NAME}</dd><dt>バージョン</dt><dd>${APP_VERSION}</dd><dt>開発者</dt><dd>TRPG Scenario Manager</dd><dt>ライセンス</dt><dd>未設定</dd></dl></section></div><div class="form-actions"><button type="button" class="btn" data-action="cancel">キャンセル</button><div class="action-right"><button type="submit" class="btn primary">保存</button></div></div></form>`, 'settings'); document.querySelector('#settings-form').addEventListener('submit', async e => { e.preventDefault(); const fd = new FormData(e.target); state.settings = { ...state.settings, theme: fd.get('theme'), confirmDelete: fd.get('confirmDelete') === 'on', promptBackup: fd.get('promptBackup') === 'on' }; await saveSettings(); toast('設定を保存しました'); }); document.querySelector('[data-action="cancel"]').addEventListener('click', () => go('list')); }
 
   function showModal(title, message, onConfirm, confirmLabel = '確認する') { const root = document.querySelector('#modal-root'); root.innerHTML = `<div class="modal-backdrop"><div class="modal" role="dialog" aria-modal="true"><h2>${escapeHtml(title)}</h2><p>${escapeHtml(message)}</p><div class="modal-actions"><button class="btn" data-modal-cancel>キャンセル</button><button class="btn danger" data-modal-confirm>${escapeHtml(confirmLabel)}</button></div></div></div>`; root.querySelector('[data-modal-cancel]').addEventListener('click', () => root.innerHTML = ''); root.querySelector('[data-modal-confirm]').addEventListener('click', async () => { root.innerHTML = ''; await onConfirm(); }); }
 
@@ -417,6 +430,11 @@
     detailRender(id);
     const scenario = state.scenarios.find(item => item.id === id);
     if (!scenario) return;
+    const detailActions = document.querySelector('.detail-actions');
+    if (detailActions) {
+      detailActions.insertAdjacentHTML('afterbegin', `<button class="favorite detail-favorite ${scenario.favorite ? 'active' : ''}" type="button" data-action="favorite" aria-label="${scenario.favorite ? 'お気に入りから外す' : 'お気に入りに追加'}" aria-pressed="${Boolean(scenario.favorite)}">${scenario.favorite ? '★' : '☆'}</button>`);
+      detailActions.querySelector('[data-action="favorite"]')?.addEventListener('click', () => toggleFavorite(id));
+    }
     const heroImage = document.querySelector('.hero-images img, .hero-images .placeholder');
     if (heroImage) heroImage.style.viewTransitionName = transitionName(id);
     const basic = scenario.basic || {};
@@ -575,6 +593,7 @@
         const start = { x: event.clientX, y: event.clientY, position: { ...image.position } };
         const move = moveEvent => {
           const viewport = imageElement.parentElement;
+          if (imageZoom(image) <= 1) return;
           image.position.x = clamp(start.position.x - ((moveEvent.clientX - start.x) / viewport.clientWidth) * 100, 0, 100);
           image.position.y = clamp(start.position.y - ((moveEvent.clientY - start.y) / viewport.clientHeight) * 100, 0, 100);
           imageElement.style.cssText = `${imagePositionStyle(image)};${imageZoomStyle(image)}`;
