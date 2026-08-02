@@ -1,0 +1,41 @@
+export type ScenarioType = "normal" | "campaign" | "kpLess";
+export type ProgressStatus = "notStarted" | "scheduled" | "completed";
+
+export interface ScenarioSummary {
+  id: string;
+  ownerId: string;
+  title: string;
+  system: string;
+  scenarioType: ScenarioType;
+  author: string | null;
+  titleReading: string | null;
+  authorReading: string | null;
+  stage: string | null;
+  recommendedSkills: string | null;
+  hoType: string | null;
+  playerCount: string;
+  playerCountType: "fixed" | "range" | "free";
+  playerCountFixed: number | null;
+  playerCountMin: number | null;
+  playerCountMax: number | null;
+  playerCountText: string | null;
+  playTime: string;
+  playTimeType: "fixed" | "range" | "free";
+  playTimeFixed: number | null;
+  playTimeMin: number | null;
+  playTimeMax: number | null;
+  playTimeText: string | null;
+  tags: string[];
+  lostRate: string | null;
+  battle: string | null;
+  thumbnailStoragePath: string | null;
+  favorite: boolean;
+  kpStatus: ProgressStatus;
+  playStatus: ProgressStatus;
+  purchaseUrl: string | null;
+  memo: string | null;
+  kpMemo: string | null;
+  plMemo: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}

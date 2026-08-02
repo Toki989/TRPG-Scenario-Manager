@@ -1,0 +1,160 @@
+html,
+body,
+#root {
+  background: var(--bg);
+}
+
+.app-header,
+.hero,
+.detail-hero,
+.panel,
+.section-card,
+.scenario-card,
+.empty-state,
+.nested-card,
+.image-draft,
+.share-list li,
+.filter-panel,
+.header-search,
+.dialog-modal,
+.discord-preview {
+  border-color: var(--line);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow);
+}
+
+.section-card,
+.scenario-card,
+.nested-card,
+.session-card,
+.character-card,
+.image-draft,
+.share-list li {
+  border-radius: var(--radius);
+}
+
+.page-subtitle,
+.filter-note,
+.card-system,
+.card-author,
+.card-stage,
+.card-recommended,
+.card-ho,
+.card-status,
+.muted,
+.status-message,
+.detail-author,
+.detail-summary,
+.detail-item h3,
+.filter-field,
+.list-meta {
+  color: var(--muted);
+}
+
+.section-heading,
+.detail-item p,
+.card-title,
+.card-title a,
+.check-label,
+.radio-label,
+.field > label,
+.form-column > label,
+.brand {
+  color: var(--text);
+}
+
+.session-card,
+.character-card {
+  border-color: var(--line);
+  background: var(--surface-soft);
+}
+
+.filter-field input,
+.filter-field select,
+.profile-form input,
+.profile-form select,
+.profile-form textarea,
+.edit-form input,
+.edit-form select,
+.edit-form textarea,
+.draft-tools select,
+.settings-page input,
+.settings-page select,
+.settings-page textarea,
+.discord-field-row,
+.discord-preview,
+.portrait-preview,
+.portrait-placeholder,
+.character-portrait,
+.share-search-result {
+  border-color: var(--line);
+  color: var(--text);
+  background: var(--surface-soft);
+}
+
+.filter-field input::placeholder,
+.profile-form input::placeholder,
+.profile-form textarea::placeholder,
+.header-search input::placeholder {
+  color: var(--muted);
+}
+
+.primary-button,
+.header-new-button {
+  color: var(--surface);
+  background: var(--primary);
+}
+
+.primary-button:hover,
+.header-new-button:hover {
+  background: var(--primary-strong);
+}
+
+.secondary-button,
+.card-tag,
+.detail-tag {
+  border-color: color-mix(in srgb, var(--primary) 35%, var(--line));
+  color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.danger-button {
+  border-color: color-mix(in srgb, var(--danger) 45%, var(--line));
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.text-button {
+  color: var(--primary);
+}
+
+.card-image,
+.detail-hero-media {
+  background: linear-gradient(135deg, var(--image-bg-start), var(--image-bg-end));
+}
+
+.card-image-placeholder {
+  color: var(--primary);
+}
+
+.image-draft img,
+.image-draft .image-placeholder,
+.image-placeholder {
+  background: var(--surface-soft);
+}
+
+.modal-backdrop {
+  background: rgb(0 0 0 / 52%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

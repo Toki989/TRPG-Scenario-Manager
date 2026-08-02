@@ -1,0 +1,16 @@
+# OS-generated files
+.DS_Store
+**/.DS_Store
+
+# Local environment files
+.env
+.env.*
+!.env.example
+!**/.env.example
+
+# Local Supabase CLI state (may contain project connection information)
+supabase/.temp/
+
+# React build artifacts and dependencies
+react-app/node_modules/
+react-app/dist/

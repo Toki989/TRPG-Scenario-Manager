@@ -1,0 +1,53 @@
+.primary-button,
+.text-button {
+  cursor: pointer;
+  border: 0;
+  border-radius: 0.6rem;
+  font: inherit;
+}
+
+.primary-button {
+  padding: 0.75rem 1rem;
+  color: #ffffff;
+  background: #4f46e5;
+  font-weight: 700;
+}
+
+.primary-button:disabled {
+  cursor: default;
+  opacity: 0.65;
+}
+
+.danger-button {
+  cursor: pointer;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid #fecaca;
+  border-radius: 0.6rem;
+  color: #b91c1c;
+  background: #fff1f2;
+  font: inherit;
+}
+
+.action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin: 1rem 0;
+}
+
+.secondary-button {
+  display: inline-block;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid #c7d2fe;
+  border-radius: 0.6rem;
+  color: #4338ca;
+  background: #eef2ff;
+  text-decoration: none;
+}
+
+.text-button {
+  margin-top: 1rem;
+  padding: 0;
+  color: #4f46e5;
+  background: transparent;
+}

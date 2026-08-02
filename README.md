@@ -1,46 +1,101 @@
 # TRPG Scenario Manager
 
-TRPGシナリオを個人管理する、デスクトップ向けローカルWebアプリケーションです。
+TRPGシナリオを個人で整理・共有するためのWebアプリケーションです。現在のアプリ本体は、React、TypeScript、Vite、Supabaseで構成されています。
 
-## 仕様書
+## 主な機能
 
-実装時に参照する仕様書は、以下を正本とします。
+- Googleアカウントによるログインとプロフィール管理
+- シナリオの登録、編集、削除、検索、絞り込み
+- キャンペーン、HO、セッション、参加キャラクターの管理
+- トレーラー画像とキャラクター画像の保存
+- お気に入り、KP・PL通過状況、個人メモの管理
+- 共有コードを利用した閲覧共有
+- JSONバックアップと復元
+- Discord投稿用テキストの生成
+- ライト、グレー、ダークテーマ
 
-- [SPECIFICATION.md](./SPECIFICATION.md)
+## 技術構成
 
-`docx`フォルダ内のTXTファイルは、提供された元仕様の記録として残しています。内容を変更する場合は、まず`SPECIFICATION.md`へ反映します。
+- React 19
+- TypeScript
+- Vite
+- React Router
+- Supabase（Auth、PostgreSQL、Storage）
 
-## 基本方針
+## ローカル起動
 
-- 仕様書を基本とする
-- HTML / CSS / JavaScriptのみを使用する
-- フレームワークは使用しない
-- サーバーを使用せず、ブラウザ内で完結させる
-- シナリオデータはIndexedDBに保存する
-- バックアップ・復元はJSONファイルで行う
-- デスクトップ画面を前提とする
-- 画面は一覧、詳細、登録・編集、バックアップ・復元、設定の5画面
+必要なもの:
 
-## 追加・確定済みの方針
+- Node.js 20以降
+- npm
+- Supabaseプロジェクト
 
-- 登録画面に「下書き保存」を追加する
-- 下書きはタイトル未入力でも保存できる
-- 下書きはIndexedDBに複数件保存できる
-- 下書きは登録済みシナリオと区別する
-- 下書きは登録画面から選択して再開する
-- 下書きはバックアップに含めない
-- トレーラー画像は複数枚登録できる
-- 設定画面は他の画面と同じデザイン体系にする
-- シナリオ一覧の星マークからお気に入り状態を切り替えられる
+```bash
+cd react-app
+npm install
+cp .env.example .env.local
+```
 
-## 現在の状態
+`.env.local`にSupabaseプロジェクトの公開用接続情報を設定します。
 
-- 仕様整理済み
-- マスタ一覧反映済み
-- 画面画像確認済み
-- Webアプリケーション本体は未作成
+```dotenv
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=your-publishable-key
+```
 
-## 後で提示される情報
+サービスロールキーやデータベースパスワードは、ブラウザへ配信される`VITE_`環境変数に設定しないでください。
 
-- TRPGシステムなどのマスタ追加・変更
-- その他、実装前に必要な選択肢
+```bash
+npm run dev
+```
+
+開発サーバーは通常 `http://localhost:5173` で起動します。
+
+## Supabaseの準備
+
+1. Supabaseプロジェクトを作成します。
+2. `supabase/migrations/`のSQLをファイル名順に適用します。
+3. Google認証を有効化し、開発・公開環境のリダイレクトURLを登録します。
+4. `avatars`と`scenario-images`を非公開Storageバケットとして作成します。
+5. Storageポリシーを含むマイグレーションが適用されていることを確認します。
+
+RLS（Row Level Security）は、所有者と明示的な共有先だけが対象データを参照できる前提で設計されています。公開環境へ接続する前に、利用するSupabaseプロジェクト上でもポリシーを確認してください。
+
+## 確認コマンド
+
+```bash
+cd react-app
+npm run format:check
+npm run typecheck
+npm run lint
+npm run build
+npm audit
+```
+
+依存関係監査で報告される既知事項と、このアプリへの適用可否は[SECURITY.md](./SECURITY.md)に記録しています。
+
+旧版バックアップとの互換性を確認する場合:
+
+```bash
+npm run verify:legacy -- /path/to/backup.json
+```
+
+## ディレクトリ構成
+
+```text
+react-app/            React版アプリケーション
+supabase/migrations/  データベース・RLS・Storageポリシー
+docs/                 開発資料
+docx/                 初期仕様資料の記録
+index.html            旧ローカル版（移行元）
+app.js                旧ローカル版（移行元）
+styles.css            旧ローカル版（移行元）
+```
+
+詳細な初期仕様は[SPECIFICATION.md](./SPECIFICATION.md)を参照してください。実装が進んでいるため、現在の挙動についてはReact版のコードとSupabaseマイグレーションを優先してください。
+
+## 公開時の注意
+
+- `.env.local`と`supabase/.temp/`はコミットしません。
+- Supabaseのサービスロールキー、データベースパスワード、個人のバックアップJSONを公開しません。
+- 本番環境ではSupabase Authの許可URLとStorageバケットの公開設定を再確認してください。

@@ -1,0 +1,362 @@
+.app-shell {
+  min-height: 100vh;
+}
+
+.auth-shell {
+  min-height: 100vh;
+  background:
+    radial-gradient(
+      circle at 15% 10%,
+      color-mix(in srgb, var(--primary-soft) 70%, transparent),
+      transparent 32rem
+    ),
+    var(--bg);
+}
+
+.auth-main {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: 2rem 1rem;
+}
+
+.auth-card {
+  width: min(100%, 32rem);
+  text-align: center;
+}
+
+.auth-card .text-button {
+  display: block;
+  margin-right: auto;
+  margin-left: auto;
+}
+
+.profile-setup-card {
+  display: grid;
+  justify-items: center;
+}
+
+.profile-setup-avatar {
+  width: 4.5rem;
+  height: 4.5rem;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.profile-setup-avatar-fallback {
+  display: grid;
+  place-items: center;
+  color: var(--surface);
+  background: var(--primary);
+  font-size: 1.8rem;
+  font-weight: 800;
+}
+
+.profile-setup-card .profile-form {
+  width: 100%;
+  text-align: left;
+}
+
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 1.8rem;
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--surface) 96%, transparent);
+  min-height: 4.875rem;
+  padding: 0 2.125rem;
+  box-shadow: 0 3px 12px rgb(31 45 82 / 5%);
+  backdrop-filter: blur(12px);
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex: 0 0 auto;
+  padding: 1rem 0;
+  color: var(--text);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.brand-mark {
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  border-radius: 0.55rem;
+  color: var(--surface);
+  background: var(--primary);
+  font-size: 1.1rem;
+}
+
+.main-nav {
+  display: flex;
+  align-items: stretch;
+  gap: 1.35rem;
+}
+
+.main-nav a {
+  display: inline-flex;
+  align-items: center;
+  padding: 1.65rem 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  text-decoration: none;
+}
+
+.main-nav a:hover {
+  color: var(--primary);
+}
+
+.main-nav a.is-active {
+  color: var(--primary);
+  font-weight: 800;
+  box-shadow: inset 0 -3px 0 var(--primary);
+}
+
+.header-search {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  width: min(22rem, 27vw);
+  min-width: 12rem;
+  margin-left: auto;
+  padding: 0 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  background: var(--surface);
+}
+
+.header-search input {
+  width: 100%;
+  min-width: 0;
+  padding: 0.6rem 0;
+  border: 0;
+  outline: 0;
+  color: var(--text);
+  background: transparent;
+  font: inherit;
+}
+
+.header-search:focus-within {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 18%, transparent);
+}
+
+.header-new-button {
+  flex: 0 0 auto;
+  text-decoration: none;
+  background: var(--primary);
+}
+
+.menu-button {
+  display: none;
+  width: 2.5rem;
+  height: 2.5rem;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--button-radius);
+  color: var(--text);
+  background: var(--surface);
+  font-size: 1.3rem;
+}
+
+.header-new-button {
+  text-decoration: none;
+}
+
+@media (max-width: 1260px) {
+  .app-header {
+    gap: 1.1rem;
+    padding-inline: 1.5rem;
+  }
+
+  .header-search {
+    width: min(19rem, 24vw);
+  }
+}
+
+@media (max-width: 1080px) {
+  .app-header {
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
+    padding: 0.5rem 1rem;
+  }
+
+  .brand {
+    margin-right: auto;
+    padding: 0.25rem 0;
+  }
+
+  .menu-button {
+    display: block;
+  }
+
+  .main-nav,
+  .header-search,
+  .header-new-button {
+    display: none;
+    width: 100%;
+  }
+
+  .main-nav.is-open,
+  .header-search.is-open,
+  .app-header:has(.main-nav.is-open) .header-new-button {
+    display: flex;
+  }
+
+  .main-nav.is-open {
+    order: 5;
+    flex-direction: column;
+    gap: 0;
+    padding: 0.35rem 0;
+    border-top: 1px solid var(--line);
+  }
+
+  .main-nav a {
+    padding: 0.75rem 0;
+  }
+
+  .header-search.is-open {
+    order: 4;
+    width: 100%;
+  }
+
+  .app-header:has(.main-nav.is-open) .header-new-button {
+    order: 6;
+    margin: 0.35rem 0 0.5rem;
+    justify-content: center;
+    text-align: center;
+  }
+
+  .main-nav a {
+    padding-block: 0.65rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .brand > span:last-child {
+    display: none;
+  }
+}
+
+.page {
+  width: min(1430px, calc(100% - 3rem));
+  margin: 0 auto;
+  padding: 2rem 0 3.5rem;
+  outline: none;
+}
+
+@media (max-width: 760px) {
+  .page {
+    width: min(100% - 1.75rem, 680px);
+    margin-top: 1.25rem;
+    padding-bottom: 2.5rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .page {
+    width: calc(100% - 1.25rem);
+    margin-top: 0.875rem;
+  }
+}
+
+.back-link {
+  display: inline-flex;
+  gap: 0.45rem;
+  margin-bottom: 0.75rem;
+  color: #4f46e5;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.hero,
+.panel {
+  border: 1px solid #e5e7eb;
+  border-radius: 1rem;
+  background: #ffffff;
+  padding: 2rem;
+  box-shadow: 0 12px 30px rgb(15 23 42 / 6%);
+}
+
+.hero h1,
+.panel h1 {
+  margin: 0.25rem 0 0.75rem;
+}
+
+.eyebrow {
+  margin: 0;
+  color: #6366f1;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.route-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.narrow-panel {
+  max-width: 560px;
+  margin: 0 auto;
+}
+
+.loading-screen {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  color: #6b7280;
+}
+
+.restore-progress {
+  display: grid;
+  gap: 0.7rem;
+  margin-top: 1rem;
+}
+
+.restore-progress-heading,
+.restore-progress-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.restore-progress-heading span,
+.restore-progress-meta {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.restore-progress progress {
+  width: 100%;
+  height: 0.7rem;
+  accent-color: var(--primary);
+}
+
+.page-title-row {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1.25rem;
+  margin: 0 0 1.5rem;
+}
+
+.page-title-row h1 {
+  margin: 0.25rem 0 0.5rem;
+}
+
+.page-subtitle {
+  margin: 0;
+  color: #6b7280;
+}
